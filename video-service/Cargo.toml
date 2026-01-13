@@ -1,0 +1,17 @@
+[package]
+name = "montage-video-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower-http = { version = "0.5", features = ["cors"] }
+tempfile = "3.8"
+uuid = { version = "1.4", features = ["v4"] }
+anyhow = "1.0"
+dashmap = "5.5"
+[profile.release]
+opt-level = 3
