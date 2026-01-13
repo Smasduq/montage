@@ -126,3 +126,42 @@ def toggle_follow(db: Session, follower_id: int, followed_id: int):
         db.add(new_follow)
         db.commit()
         return True
+
+import random
+import string
+from datetime import datetime, timedelta
+
+def create_verification_code(db: Session, email: str):
+    # Delete existing codes for this email
+    db.query(models.VerificationCode).filter(models.VerificationCode.email == email).delete()
+    
+    code = ''.join(random.choices(string.digits, k=6))
+    expires_at = datetime.now() + timedelta(minutes=10)
+    
+    db_code = models.VerificationCode(
+        email=email,
+        code=code,
+        expires_at=expires_at
+    )
+    db.add(db_code)
+    db.commit()
+    return code
+
+def verify_code(db: Session, email: str, code: str):
+    db_code = db.query(models.VerificationCode).filter(
+        models.VerificationCode.email == email,
+        models.VerificationCode.code == code
+    ).first()
+    
+    if not db_code:
+        return False
+    
+    if db_code.expires_at < datetime.now():
+        db.delete(db_code)
+        db.commit()
+        return False
+    
+    # Success, delete the code
+    db.delete(db_code)
+    db.commit()
+    return True

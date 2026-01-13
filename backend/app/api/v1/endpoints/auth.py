@@ -25,13 +25,20 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email first.",
+        )
+
     access_token_expires = timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/register", response_model=schemas.User)
+@router.post("/register", response_model=schemas.VerificationResponse)
 def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud_user.get_user_by_email(db, email=user_in.email)
     if db_user:
@@ -42,7 +49,27 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already taken")
     
     user = crud_user.create_user(db, user=user_in, is_onboarded=True)
-    return user
+    
+    # Generate verification code
+    code = crud_user.create_verification_code(db, email=user.email)
+    print(f"VERIFICATION CODE FOR {user.email}: {code}") # Log for testing
+    
+    return {
+        "message": "Registration successful. Please check your email for the verification code.",
+        "email": user.email,
+        "username": user.username
+    }
+
+@router.post("/verify-email", response_model=schemas.VerificationResponse)
+def verify_email(data: schemas.EmailVerification, db: Session = Depends(get_db)):
+    if crud_user.verify_code(db, email=data.email, code=data.code):
+        user = crud_user.get_user_by_email(db, email=data.email)
+        if user:
+            user.is_verified = True
+            db.commit()
+            return {"message": "Email verified successfully", "username": user.username}
+    
+    raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
 @router.post("/google", response_model=schemas.Token)
 async def google_auth(auth_data: schemas.UserGoogleAuth, db: Session = Depends(get_db)):
@@ -73,11 +100,17 @@ async def google_auth(auth_data: schemas.UserGoogleAuth, db: Session = Depends(g
                 full_name=name,
                 profile_pic=picture
             )
+            # Google users are auto-verified
             user = crud_user.create_user(db=db, user=user_create, google_id=google_id, is_onboarded=True)
-        elif not user.google_id:
-            user.google_id = google_id
+            user.is_verified = True
+            db.commit()
+            db.refresh(user)
+        else:
+            if not user.google_id:
+                user.google_id = google_id
             if picture and not user.profile_pic:
                 user.profile_pic = picture
+            user.is_verified = True # Ensure verified status for Google users
             db.commit()
             db.refresh(user)
 

@@ -40,11 +40,22 @@ class UserUpdate(BaseModel):
 class User(UserBase):
     id: int
     is_premium: bool
+    is_verified: bool
     is_onboarded: bool
     flash_uploads: int
     home_uploads: int
     google_id: Optional[str] = None
     bio: Optional[str] = None
+    role: str
+
+class EmailVerification(BaseModel):
+    email: str
+    code: str
+
+class VerificationResponse(BaseModel):
+    message: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 

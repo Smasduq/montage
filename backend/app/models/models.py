@@ -28,6 +28,7 @@ class User(Base):
     google_id = Column(String, unique=True, nullable=True)
     role = Column(String, default=UserRole.USER)
     is_premium = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
     is_onboarded = Column(Boolean, default=False)
     profile_pic = Column(String, default=f"{BASE_URL}/static/defaults/default_avatar.png")
     
@@ -35,6 +36,15 @@ class User(Base):
     flash_uploads = Column(Integer, default=0)
     home_uploads = Column(Integer, default=0)
     bio = Column(String, nullable=True)
+
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    code = Column(String)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=func.now())
 
     videos = relationship("Video", back_populates="owner")
     posts = relationship("Post", back_populates="owner")
