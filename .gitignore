@@ -30,7 +30,7 @@ backend/reset_password.py
 backend/check_s3_connection.py
 backend/s3_debug.log
 backend/.env.tmp
-backend/reset_db.pyid
+backend/reset_db.py
 backend/montage.db
 
 # Environment
