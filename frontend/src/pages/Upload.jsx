@@ -8,16 +8,26 @@ import { useNotification } from '../context/NotificationContext';
 const Upload = () => {
     const { user, token } = useAuth();
     const [quotas, setQuotas] = useState({
-        flash: { used: 0, total: 20, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
-        home: { used: 0, total: 50, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
+        flash: { used: 0, total: 50, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
+        home: { used: 0, total: 20, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
         posts: { used: 0, total: Infinity, icon: <Layout size={24} />, color: 'hsl(280, 100%, 65%)' }
     });
 
     useEffect(() => {
         if (user) {
             setQuotas({
-                flash: { used: user.flash_uploads || 0, total: 20, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
-                home: { used: user.home_uploads || 0, total: 50, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
+                flash: {
+                    used: user.flash_uploads || 0,
+                    total: user.flash_quota_limit || 50,
+                    icon: <FileVideo size={24} />,
+                    color: 'hsl(345, 100%, 55%)'
+                },
+                home: {
+                    used: user.home_uploads || 0,
+                    total: user.home_quota_limit || 20,
+                    icon: <Video size={24} />,
+                    color: 'hsl(210, 100%, 55%)'
+                },
                 posts: { used: 0, total: Infinity, icon: <Layout size={24} />, color: 'hsl(280, 100%, 65%)' }
             });
         }

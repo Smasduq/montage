@@ -26,3 +26,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # Database Configuration
 # Default to SQLite for local development if not set
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./montage.db")
+
+# Quota Limits
+FLASH_QUOTA_LIMIT = 50
+HOME_QUOTA_LIMIT = 20

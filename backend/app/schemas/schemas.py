@@ -44,6 +44,8 @@ class User(UserBase):
     is_onboarded: bool
     flash_uploads: int
     home_uploads: int
+    flash_quota_limit: int
+    home_quota_limit: int
     google_id: Optional[str] = None
     bio: Optional[str] = None
     role: str

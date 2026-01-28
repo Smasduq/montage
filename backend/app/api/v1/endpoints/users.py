@@ -100,15 +100,31 @@ async def upload_avatar(
     file_ext = file.filename.split(".")[-1]
     file_name = f"profiles/{uuid4()}.{file_ext}"
     
-    if not config.B2_BUCKET_NAME:
-         raise HTTPException(status_code=500, detail="Server storage not configured")
+    avatar_url = None
 
-    avatar_url = s3_client.upload_fileobj(
-        file.file, 
-        file_name, 
-        content_type=file.content_type
-    )
-    
+    if config.B2_BUCKET_NAME:
+        avatar_url = s3_client.upload_fileobj(
+            file.file, 
+            file_name, 
+            content_type=file.content_type
+        )
+    else:
+        # Local fallback
+        import os
+        import shutil
+        
+        static_dir = config.STATIC_DIR
+        profiles_dir = os.path.join(static_dir, "profiles")
+        os.makedirs(profiles_dir, exist_ok=True)
+        
+        local_filename = f"{uuid4()}.{file_ext}"
+        local_path = os.path.join(profiles_dir, local_filename)
+        
+        with open(local_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        avatar_url = f"{config.BASE_URL}/static/profiles/{local_filename}"
+
     if not avatar_url:
         raise HTTPException(status_code=500, detail="Failed to upload image")
     

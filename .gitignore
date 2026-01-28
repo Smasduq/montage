@@ -6,6 +6,8 @@ __pycache__/
 *.db
 *.mp4
 .Python
+*.log
+*.pid
 env/
 build/
 develop-eggs/

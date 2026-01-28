@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.api import api_router
 from app.core import dependencies
 # Database initialized via Supabase schema
+# Trigger reload for - Avatar Upload Fix
 
 from fastapi.staticfiles import StaticFiles
 import os

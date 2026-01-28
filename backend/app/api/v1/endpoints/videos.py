@@ -11,6 +11,7 @@ from app.crud import video as crud_video
 from app.schemas import schemas
 from app.core.dependencies import get_current_user, get_current_user_optional
 from app.core import config
+from app.core.config import FLASH_QUOTA_LIMIT, HOME_QUOTA_LIMIT
 from app.models.models import Video
 
 router = APIRouter()
@@ -238,10 +239,10 @@ async def upload_video(
 ):
     # current_user is now a User model instance, not dict
     if not current_user.is_premium:
-        if video_type == "flash" and current_user.flash_uploads >= 20:
-            raise HTTPException(status_code=403, detail="Flash quota exceeded (20 max)")
-        if video_type == "home" and current_user.home_uploads >= 50:
-            raise HTTPException(status_code=403, detail="Home quota exceeded (50 max)")
+        if video_type == "flash" and current_user.flash_uploads >= FLASH_QUOTA_LIMIT:
+            raise HTTPException(status_code=403, detail=f"Flash quota exceeded ({FLASH_QUOTA_LIMIT} max)")
+        if video_type == "home" and current_user.home_uploads >= HOME_QUOTA_LIMIT:
+            raise HTTPException(status_code=403, detail=f"Home quota exceeded ({HOME_QUOTA_LIMIT} max)")
 
     temp_dir = tempfile.mkdtemp()
     temp_file_path = os.path.join(temp_dir, file.filename)

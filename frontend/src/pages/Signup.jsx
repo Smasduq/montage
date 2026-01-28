@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BASE_URL } from '../api';
+import { API_BASE_URL } from '../api';
 import { Mail, Lock, User, Zap } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +35,7 @@ const Signup = () => {
         }
         setIsChecking(true);
         try {
-            const response = await fetch(`${BASE_URL}/auth/check-username?username=${val}`);
+            const response = await fetch(`${API_BASE_URL}/auth/check-username?username=${val}`);
             const data = await response.json();
             setIsAvailable(data.available);
         } catch (err) {
@@ -77,7 +77,7 @@ const Signup = () => {
         e.preventDefault();
         setError('');
         try {
-            const response = await fetch(`${BASE_URL}/auth/verify-email`, {
+            const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, code: verificationCode })

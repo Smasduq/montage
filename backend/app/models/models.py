@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Float, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 import enum
-from app.core.config import BASE_URL
+from app.core.config import BASE_URL, FLASH_QUOTA_LIMIT, HOME_QUOTA_LIMIT
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
@@ -35,7 +35,17 @@ class User(Base):
     # Quotas for free users
     flash_uploads = Column(Integer, default=0)
     home_uploads = Column(Integer, default=0)
+    flash_uploads = Column(Integer, default=0)
+    home_uploads = Column(Integer, default=0)
     bio = Column(String, nullable=True)
+
+    @property
+    def flash_quota_limit(self):
+        return FLASH_QUOTA_LIMIT
+
+    @property
+    def home_quota_limit(self):
+        return HOME_QUOTA_LIMIT
 
     videos = relationship("Video", back_populates="owner")
     posts = relationship("Post", back_populates="owner")

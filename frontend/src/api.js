@@ -1,6 +1,6 @@
 export const BASE_URL = import.meta.env.VITE_API_URL;
 const API_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = `${API_URL}/api/v1`;
+export const API_BASE_URL = `${API_URL}/api/v1`;
 
 export const login = async (username, password) => {
     const formData = new FormData();
