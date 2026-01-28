@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-from app.core import security, config
 from app.db.session import get_db
+from app.core import security, config
 from app.crud import user as crud_user
 from app.schemas import schemas
-from app.models import models
+from app.models.models import User
 
 router = APIRouter()
 
@@ -65,8 +65,10 @@ def verify_email(data: schemas.EmailVerification, db: Session = Depends(get_db))
     if crud_user.verify_code(db, email=data.email, code=data.code):
         user = crud_user.get_user_by_email(db, email=data.email)
         if user:
+            # Update is_verified
             user.is_verified = True
             db.commit()
+            db.refresh(user)
             return {"message": "Email verified successfully", "username": user.username}
     
     raise HTTPException(status_code=400, detail="Invalid or expired verification code")
@@ -98,10 +100,11 @@ async def google_auth(auth_data: schemas.UserGoogleAuth, db: Session = Depends(g
                 username=username, 
                 email=email, 
                 full_name=name,
-                profile_pic=picture
+                profile_pic=picture,
+                password=None # Google auth users don't have passwords
             )
             # Google users are auto-verified
-            user = crud_user.create_user(db=db, user=user_create, google_id=google_id, is_onboarded=True)
+            user = crud_user.create_user(db, user=user_create, google_id=google_id, is_onboarded=True)
             user.is_verified = True
             db.commit()
             db.refresh(user)
@@ -110,7 +113,8 @@ async def google_auth(auth_data: schemas.UserGoogleAuth, db: Session = Depends(g
                 user.google_id = google_id
             if picture and not user.profile_pic:
                 user.profile_pic = picture
-            user.is_verified = True # Ensure verified status for Google users
+            
+            user.is_verified = True
             db.commit()
             db.refresh(user)
 

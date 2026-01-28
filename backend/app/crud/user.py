@@ -1,26 +1,30 @@
 from sqlalchemy.orm import Session
-from app.models import models
+from sqlalchemy import func
 from app.schemas import schemas
 from app.core import security
+from app.models.models import User, Follow, Video, Post, VerificationCode
+from datetime import datetime, timedelta
+import random
+import string
 
 def get_user_by_username(db: Session, username: str):
-    return db.query(models.User).filter(models.User.username == username).first()
+    return db.query(User).filter(User.username == username).first()
 
 def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
+    return db.query(User).filter(User.email == email).first()
 
 def create_user(db: Session, user: schemas.UserCreate, google_id: str = None, is_onboarded: bool = False):
     hashed_password = security.get_password_hash(user.password) if user.password else None
     
-    # If this is the very first user, OR if the username is 'smasduq', make them an admin
-    user_count = db.query(models.User).count()
+    # Get user count for admin assignment
+    user_count = db.query(func.count(User.id)).scalar() or 0
     is_first_user = user_count == 0
     is_requested_admin = user.username.lower() == "smasduq"
     
-    role = models.UserRole.ADMIN if (is_first_user or is_requested_admin) else models.UserRole.USER
+    role = "admin" if (is_first_user or is_requested_admin) else "user"
 
-    db_user = models.User(
-        username=user.username, 
+    db_user = User(
+        username=user.username,
         email=user.email,
         full_name=user.full_name,
         profile_pic=user.profile_pic,
@@ -29,72 +33,84 @@ def create_user(db: Session, user: schemas.UserCreate, google_id: str = None, is
         is_onboarded=is_onboarded,
         role=role
     )
+    
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
 def update_user_role(db: Session, user_id: int, role: str):
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if db_user:
-        db_user.role = role
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.role = role
         db.commit()
-        db.refresh(db_user)
-    return db_user
+        db.refresh(user)
+    return user
 
 def update_user(db: Session, user_id: int, user_update: schemas.UserUpdate):
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if db_user:
-        if user_update.username:
-            db_user.username = user_update.username
-        if user_update.full_name:
-            db_user.full_name = user_update.full_name
-        if user_update.profile_pic:
-            db_user.profile_pic = user_update.profile_pic
-        if user_update.bio is not None:
-            db_user.bio = user_update.bio
-        if user_update.is_onboarded is not None:
-            db_user.is_onboarded = user_update.is_onboarded
-        db.commit()
-        db.refresh(db_user)
-    return db_user
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+
+    if user_update.username:
+        user.username = user_update.username
+    if user_update.full_name:
+        user.full_name = user_update.full_name
+    if user_update.profile_pic:
+        user.profile_pic = user_update.profile_pic
+    if user_update.bio is not None:
+        user.bio = user_update.bio
+    if user_update.is_onboarded is not None:
+        user.is_onboarded = user_update.is_onboarded
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+def get_user_by_id(db: Session, user_id: int):
+    return db.query(User).filter(User.id == user_id).first()
 
 def get_user_profile(db: Session, username: str, current_user_id: int = None):
-    db_user = db.query(models.User).filter(models.User.username == username).first()
+    db_user = get_user_by_username(db, username)
     if not db_user:
         return None
     
-    from sqlalchemy import func
-    followers_count = db.query(models.Follow).filter(models.Follow.followed_id == db_user.id).count()
-    following_count = db.query(models.Follow).filter(models.Follow.follower_id == db_user.id).count()
-    total_views = db.query(func.sum(models.Video.views)).filter(models.Video.owner_id == db_user.id).scalar() or 0
+    user_id = db_user.id
+    
+    # Counts
+    followers_count = db.query(func.count(Follow.follower_id)).filter(Follow.followed_id == user_id).scalar() or 0
+    following_count = db.query(func.count(Follow.followed_id)).filter(Follow.follower_id == user_id).scalar() or 0
+    
+    # Total Views
+    total_views = db.query(func.sum(Video.views)).filter(Video.owner_id == user_id).scalar() or 0
     
     is_following = False
     if current_user_id:
-        is_following = db.query(models.Follow).filter(
-            models.Follow.follower_id == current_user_id,
-            models.Follow.followed_id == db_user.id
-        ).first() is not None
+        is_following = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first() is not None
 
-    # approved content only
-    from app.crud.video import get_videos
-    videos = [v for v in db_user.videos if v.video_type == "home" and v.status == "approved"]
-    flash_videos = [v for v in db_user.videos if v.video_type == "flash" and v.status == "approved"]
-    posts = db_user.posts
+    # Videos
+    all_videos = db.query(Video).filter(Video.owner_id == user_id, Video.status == "approved").all()
+    videos = [v for v in all_videos if v.video_type == "home"]
+    flash_videos = [v for v in all_videos if v.video_type == "flash"]
+    
+    # Posts
+    posts = db.query(Post).filter(Post.owner_id == user_id).all()
 
-    # Create profile object
     profile_data = {
         "id": db_user.id,
         "username": db_user.username,
         "email": db_user.email,
         "full_name": db_user.full_name,
         "profile_pic": db_user.profile_pic,
-        "role": db_user.role,
         "is_premium": db_user.is_premium,
+        "is_verified": db_user.is_verified,
         "is_onboarded": db_user.is_onboarded,
         "flash_uploads": db_user.flash_uploads,
         "home_uploads": db_user.home_uploads,
         "bio": db_user.bio,
+        "role": db_user.role,
+        "google_id": db_user.google_id,
+        
         "followers_count": followers_count,
         "following_count": following_count,
         "total_views": total_views,
@@ -112,47 +128,36 @@ def toggle_follow(db: Session, follower_id: int, followed_id: int):
     if follower_id == followed_id:
         return False
     
-    existing = db.query(models.Follow).filter(
-        models.Follow.follower_id == follower_id,
-        models.Follow.followed_id == followed_id
-    ).first()
+    existing = db.query(Follow).filter(Follow.follower_id == follower_id, Follow.followed_id == followed_id).first()
     
     if existing:
         db.delete(existing)
         db.commit()
         return False
     else:
-        new_follow = models.Follow(follower_id=follower_id, followed_id=followed_id)
+        new_follow = Follow(follower_id=follower_id, followed_id=followed_id)
         db.add(new_follow)
         db.commit()
         return True
 
-import random
-import string
-from datetime import datetime, timedelta
-
 def create_verification_code(db: Session, email: str):
-    # Delete existing codes for this email
-    db.query(models.VerificationCode).filter(models.VerificationCode.email == email).delete()
+    # Delete existing codes
+    db.query(VerificationCode).filter(VerificationCode.email == email).delete()
     
     code = ''.join(random.choices(string.digits, k=6))
     expires_at = datetime.now() + timedelta(minutes=10)
     
-    db_code = models.VerificationCode(
+    ver_code = VerificationCode(
         email=email,
         code=code,
         expires_at=expires_at
     )
-    db.add(db_code)
+    db.add(ver_code)
     db.commit()
     return code
 
 def verify_code(db: Session, email: str, code: str):
-    db_code = db.query(models.VerificationCode).filter(
-        models.VerificationCode.email == email,
-        models.VerificationCode.code == code
-    ).first()
-    
+    db_code = db.query(VerificationCode).filter(VerificationCode.email == email, VerificationCode.code == code).first()
     if not db_code:
         return False
     
@@ -161,7 +166,7 @@ def verify_code(db: Session, email: str, code: str):
         db.commit()
         return False
     
-    # Success, delete the code
+    # Success
     db.delete(db_code)
     db.commit()
     return True

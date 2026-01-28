@@ -163,18 +163,33 @@ const Header = ({ onMenuToggle, isMenuOpen }) => {
                     <div className="logo-icon-wrapper">
                         <Zap size={28} fill="var(--accent-primary)" color="var(--accent-primary)" />
                     </div>
-                    <span style={{
+                    <span className="desktop-only" style={{
                         fontWeight: 900,
                         fontSize: '1.4rem',
                         letterSpacing: '1px',
                         background: 'linear-gradient(to right, #fff, #888)',
                         WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
+                        WebkitTextFillColor: 'transparent',
                     }}>MONTAGE</span>
                 </div>
             </div>
 
-            <div className="header-center">
+            {/* Mobile Search Icon - Only visible on small screens */}
+            <div className="mobile-only" style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                <button
+                    className="glass"
+                    onClick={() => navigate('/search')}
+                    style={{
+                        width: '40px', height: '40px', borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)'
+                    }}
+                >
+                    <Search size={20} />
+                </button>
+            </div>
+
+            <div className="header-center desktop-only">
                 <form className="search-container glass" onSubmit={handleSearch} ref={dropdownRef}>
                     <Search className="search-icon" size={18} />
                     <input

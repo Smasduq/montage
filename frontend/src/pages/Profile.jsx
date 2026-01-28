@@ -71,17 +71,20 @@ const Profile = () => {
         <div className="profile-page page-container">
             <div className="profile-header glass" style={{
                 marginTop: '1rem',
-                padding: '3rem 2rem',
+                padding: '2.5rem 1.5rem',
                 borderRadius: '24px',
                 display: 'flex',
-                gap: '3rem',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '2rem',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                textAlign: 'center'
             }}>
                 <div className="profile-avatar-wrapper" style={{ position: 'relative' }}>
                     <div style={{
-                        width: '180px',
-                        height: '180px',
+                        width: '140px',
+                        height: '140px',
                         borderRadius: '50%',
                         background: 'linear-gradient(45deg, var(--accent-primary), #a00000)',
                         padding: '4px'
@@ -104,22 +107,25 @@ const Profile = () => {
                     </div>
                 </div>
 
-                <div className="profile-info" style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                        <h1 style={{ fontSize: '2.5rem', margin: 0 }}>{profile.full_name || `@${profile.username}`}</h1>
+                <div className="profile-info" style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                        <h1 style={{ fontSize: '2rem', margin: 0 }}>{profile.full_name || `@${profile.username}`}</h1>
+                        <div style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>@{profile.username}</div>
+
                         {isOwnProfile ? (
-                            <button className="btn-active" onClick={() => navigate('/settings')} style={{ padding: '0.6rem 1.5rem', borderRadius: '50px', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border-glass)', color: 'white' }}>Edit Profile</button>
+                            <button className="btn-active" onClick={() => navigate('/settings')} style={{ padding: '0.6rem 2rem', borderRadius: '50px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>Edit Profile</button>
                         ) : (
                             <button
                                 className={`btn-active ${isFollowing ? 'glass' : ''}`}
                                 onClick={handleFollow}
                                 style={{
-                                    padding: '0.6rem 2rem',
+                                    padding: '0.6rem 2.5rem',
                                     borderRadius: '50px',
                                     background: isFollowing ? 'rgba(255,255,255,0.1)' : 'var(--accent-primary)',
                                     border: isFollowing ? '1px solid var(--border-glass)' : 'none',
                                     color: 'white',
-                                    fontWeight: 700
+                                    fontWeight: 700,
+                                    fontSize: '0.95rem'
                                 }}
                             >
                                 {isFollowing ? 'Following' : 'Follow'}
@@ -127,44 +133,43 @@ const Profile = () => {
                         )}
                     </div>
 
-                    <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>@{profile.username}</div>
+                    {profile.bio && <p style={{ fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '2rem', opacity: 0.8 }}>{profile.bio}</p>}
 
-                    {profile.bio && <p style={{ fontSize: '1rem', lineHeight: 1.6, marginBottom: '2rem', maxWidth: '600px' }}>{profile.bio}</p>}
-
-                    <div className="stats-row" style={{ display: 'flex', gap: '3rem' }}>
+                    <div className="stats-row" style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>{profile.followers_count}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Followers</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{profile.followers_count}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Followers</div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>{profile.following_count}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Following</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{profile.following_count}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Following</div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>{profile.total_views}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Views</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{profile.total_views}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Views</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="profile-tabs" style={{ display: 'flex', justifyContent: 'center', gap: '4rem', marginTop: '3rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="profile-tabs" style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', borderBottom: '1px solid rgba(255,255,255,0.05)', overflowX: 'auto', padding: '0 1rem' }}>
                 {['videos', 'flash', 'posts'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         style={{
-                            padding: '1rem 2rem',
+                            padding: '1rem',
                             background: 'none',
                             border: 'none',
                             color: activeTab === tab ? 'white' : 'var(--text-muted)',
-                            fontSize: '1rem',
-                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
                             textTransform: 'uppercase',
-                            letterSpacing: '1.5px',
+                            letterSpacing: '1px',
                             cursor: 'pointer',
                             position: 'relative',
-                            transition: 'all 0.3s ease'
+                            transition: 'all 0.3s ease',
+                            flexShrink: 0
                         }}
                     >
                         {tab}

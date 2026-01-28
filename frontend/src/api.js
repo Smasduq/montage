@@ -1,5 +1,6 @@
-export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-const API_BASE_URL = BASE_URL;
+export const BASE_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = `${API_URL}/api/v1`;
 
 export const login = async (username, password) => {
     const formData = new FormData();
@@ -142,5 +143,24 @@ export const searchUnified = async (query) => {
 };
 export const getTrendingSuggestions = async () => {
     const response = await fetch(`${API_BASE_URL}/videos/trending-suggestions`);
+    return response.json();
+};
+
+export const deleteVideo = async (videoId, token) => {
+    const response = await fetch(`${API_BASE_URL}/videos/${videoId}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    return response.json();
+};
+
+export const getUserInsights = async (token) => {
+    const response = await fetch(`${API_BASE_URL}/users/me/insights`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
     return response.json();
 };

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.db.session import get_db
-from app.models import models
 from app.schemas import schemas
 from app.core.dependencies import admin_only
 from app.core import security, config
 from app.crud import user as crud_user
+from app.models.models import User, Video
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import List
@@ -25,7 +26,7 @@ async def login_for_admin_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if user.role != models.UserRole.ADMIN:
+    if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: Admin privileges required",
@@ -43,27 +44,22 @@ def read_users(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(admin_only)
+    current_user: dict = Depends(admin_only)
 ):
-    users = db.query(models.User).offset(skip).limit(limit).all()
+    users = db.query(User).offset(skip).limit(limit).all()
     return users
 
 @router.get("/stats")
 def read_stats(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(admin_only)
+    current_user: dict = Depends(admin_only)
 ):
-    user_count = db.query(models.User).count()
-    video_count = db.query(models.Video).count()
-    premium_count = db.query(models.User).filter(models.User.is_premium == True).count()
-    total_views = db.query(models.Video.views).count() # This just counts rows, slightly wrong logic for sum, fixing below
+    user_count = db.query(func.count(User.id)).scalar() or 0
+    video_count = db.query(func.count(Video.id)).scalar() or 0
+    premium_count = db.query(func.count(User.id)).filter(User.is_premium == True).scalar() or 0
     
-    # Correct logic for sum of views
-    total_views_sum = 0
-    videos = db.query(models.Video).all()
-    for v in videos:
-        if v.views:
-            total_views_sum += v.views
+    # Sum views
+    total_views_sum = db.query(func.sum(Video.views)).scalar() or 0
 
     return {
         "users": user_count,
@@ -77,13 +73,14 @@ def promote_user(
     user_id: int,
     is_premium: bool = True,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(admin_only)
+    current_user: dict = Depends(admin_only)
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    user = crud_user.get_user_by_id(db, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     user.is_premium = is_premium
     db.commit()
     db.refresh(user)
+    
     return {"message": f"User {user.username} premium status set to {is_premium}"}

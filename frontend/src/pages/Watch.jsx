@@ -41,19 +41,22 @@ const DownloadModal = ({ video, onClose, user }) => {
     return (
         <div className="modal-overlay" style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
         }}>
             <div className="modal-content glass" style={{
-                background: '#1a1a1a', padding: '2rem', borderRadius: '1rem',
+                background: '#1a1a1a', padding: '1.5rem', borderRadius: '1.5rem',
                 width: '100%', maxWidth: '400px', position: 'relative',
-                border: '1px solid var(--border-glass)'
+                border: '1px solid var(--border-glass)',
+                maxHeight: '80vh', overflowY: 'auto'
             }}>
                 <button onClick={onClose} style={{
                     position: 'absolute', top: '1rem', right: '1rem',
-                    background: 'none', border: 'none', color: '#666', cursor: 'pointer'
-                }}><X size={24} /></button>
+                    background: 'none', border: 'none', color: '#666', cursor: 'pointer',
+                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}><X size={20} /></button>
 
-                <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Download Quality</h2>
+                <h2 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 800 }}>Download Quality</h2>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     {resolutions.map(res => (
@@ -62,21 +65,19 @@ const DownloadModal = ({ video, onClose, user }) => {
                             onClick={() => handleDownload(res)}
                             style={{
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                padding: '1rem', borderRadius: '0.5rem',
+                                padding: '1.2rem', borderRadius: '1rem',
                                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                                 color: 'white', cursor: 'pointer', transition: 'all 0.2s'
                             }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                         >
-                            <span style={{ fontWeight: 600 }}>{res.label}</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{res.label}</span>
                             {res.premium && !user?.is_premium ? (
                                 <span style={{
-                                    fontSize: '0.7rem', background: '#333', color: '#888',
-                                    padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase'
+                                    fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', color: '#aaa',
+                                    padding: '0.2rem 0.6rem', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 800
                                 }}>Premium</span>
                             ) : (
-                                <Download size={18} color="var(--accent-primary)" />
+                                <Download size={20} color="var(--accent-primary)" />
                             )}
                         </button>
                     ))}
@@ -201,59 +202,58 @@ const Watch = () => {
                 <VideoPlayer video={video} autoPlay={true} onTimeUpdate={handleTimeUpdate} />
             </div>
 
-            <div className="watch-meta">
-                <h1 style={{ marginBottom: '0.5rem' }}>{video.title}</h1>
+            <div className="watch-meta" style={{ padding: '1.5rem 1rem' }}>
+                <h1 style={{ marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 800, lineHeight: 1.3 }}>{video.title}</h1>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div
+                            onClick={() => navigate(`/profile/${video.owner?.username}`)}
+                            className="avatar-placeholder"
+                            style={{
+                                width: '48px', height: '48px', cursor: 'pointer', border: '2px solid rgba(255,255,255,0.1)'
+                            }}
+                        >
+                            {video.owner?.profile_pic ? (
+                                <img src={video.owner.profile_pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <div style={{ fontSize: '1.2rem' }}>
+                                    {video.owner?.username?.[0].toUpperCase()}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ flex: 1 }}>
                             <div
                                 onClick={() => navigate(`/profile/${video.owner?.username}`)}
-                                className="avatar-placeholder"
-                                style={{
-                                    width: '44px', height: '44px', cursor: 'pointer'
-                                }}
+                                style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer' }}
+                                className="hover-underline"
                             >
-                                {video.owner?.profile_pic ? (
-                                    <img src={video.owner.profile_pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                    <div style={{ fontSize: '1.2rem' }}>
-                                        {video.owner?.username?.[0].toUpperCase()}
-                                    </div>
-                                )}
+                                @{video.owner?.username || 'Unknown'}
                             </div>
-                            <div>
-                                <div
-                                    onClick={() => navigate(`/profile/${video.owner?.username}`)}
-                                    style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer' }}
-                                    className="hover-underline"
-                                >
-                                    @{video.owner?.username || 'Unknown'}
-                                </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                    {video.views?.toLocaleString()} views • {video.shares} shares • {video.created_at ? new Date(video.created_at).toLocaleDateString() : 'Recently'}
-                                </div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                {video.views?.toLocaleString()} views • {video.created_at ? new Date(video.created_at).toLocaleDateString() : 'Recently'}
                             </div>
                         </div>
                     </div>
 
-                    <div className="watch-actions">
+                    <div className="watch-actions" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', maskImage: 'linear-gradient(to right, black 90%, transparent)' }}>
                         <button
                             className={`watch-btn ${video.liked_by_user ? 'liked' : ''}`}
                             onClick={handleLike}
+                            style={{ flexShrink: 0, padding: '0.6rem 1.2rem' }}
                         >
                             <Heart
-                                size={20}
+                                size={18}
                                 fill={video.liked_by_user ? 'currentColor' : 'none'}
                                 color="currentColor"
                             />
                             {video.likes_count}
                         </button>
-                        <button className="watch-btn" onClick={handleShare}>
-                            <Share2 size={20} /> Share
+                        <button className="watch-btn" onClick={handleShare} style={{ flexShrink: 0, padding: '0.6rem 1.2rem' }}>
+                            <Share2 size={18} /> Share
                         </button>
-                        <button className="watch-btn" onClick={() => setShowDownloadModal(true)}>
-                            <Download size={20} /> Download
+                        <button className="watch-btn" onClick={() => setShowDownloadModal(true)} style={{ flexShrink: 0, padding: '0.6rem 1.2rem' }}>
+                            <Download size={18} /> Download
                         </button>
                     </div>
                 </div>

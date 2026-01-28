@@ -6,17 +6,17 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.crud import video as crud_video
 from app.schemas import schemas
-from app.models import models
 from app.core.dependencies import get_current_user, get_current_user_optional
 from app.core import config
+from app.models.models import Video
 
 router = APIRouter()
 
 @router.get("/", response_model=List[schemas.Video])
-def read_videos(video_type: str = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user_optional)):
+def read_videos(video_type: str = None, db: Session = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     user_id = current_user.id if current_user else None
     return crud_video.get_videos(db, video_type=video_type, current_user_id=user_id)
 
@@ -24,7 +24,7 @@ def read_videos(video_type: str = None, db: Session = Depends(get_db), current_u
 async def search_videos(
     q: Optional[str] = "", 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user_optional)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     user_id = current_user.id if current_user else None
     return crud_video.search_videos(db, query_str=q, current_user_id=user_id)
@@ -34,65 +34,56 @@ async def get_search_suggestions(q: Optional[str] = "", db: Session = Depends(ge
     if not q or len(q) < 2: return []
     
     # 1. Search Videos (Home & Flash)
-    videos = db.query(models.Video.title).filter(
-        (models.Video.title.ilike(f"%{q}%")) & 
-        (models.Video.status == "approved")
-    ).order_by(models.Video.views.desc()).limit(10).all()
+    videos = crud_video.search_videos(db, query_str=q)
     
     # 2. Search Users
-    users = db.query(models.User.username).filter(
-        models.User.username.ilike(f"%{q}%")
-    ).limit(5).all()
+    from app.models.models import User
+    users = db.query(User).filter(User.username.ilike(f"%{q}%")).limit(5).all()
     
     seen = set()
     suggestions = []
     
     # Prioritize users in suggestions
     for u in users:
-        val = f"@{u[0]}"
+        val = f"@{u.username}"
         if val not in seen:
             suggestions.append(val)
             seen.add(val)
             
-    for v in videos:
-        if v[0] not in seen:
-            suggestions.append(v[0])
-            seen.add(v[0])
+    for v in videos[:10]:
+        if v.title not in seen:
+            suggestions.append(v.title)
+            seen.add(v.title)
             
     return suggestions[:10]
 
 @router.get("/trending-suggestions")
 async def get_trending_suggestions(db: Session = Depends(get_db)):
     # 1. High views (Trending)
-    trending = db.query(models.Video.title).filter(
-        models.Video.status == "approved"
-    ).order_by(models.Video.views.desc()).limit(5).all()
+    trending_videos = db.query(Video).filter(Video.status == "approved").order_by(Video.views.desc()).limit(5).all()
     
     # 2. Recent uploads
-    recent = db.query(models.Video.title).filter(
-        models.Video.status == "approved"
-    ).order_by(models.Video.created_at.desc()).limit(5).all()
+    recent_videos = db.query(Video).filter(Video.status == "approved").order_by(Video.created_at.desc()).limit(5).all()
     
     # 3. Popular Creators
-    # Simple logic: users with most total video views (placeholder logic)
-    # For now just some active users
-    users = db.query(models.User.username).limit(3).all()
+    from app.models.models import User
+    users = db.query(User).limit(3).all()
 
     seen = set()
     suggestions = []
     
-    for v in trending:
-        if v[0] not in seen:
-            suggestions.append(v[0])
-            seen.add(v[0])
+    for v in trending_videos:
+        if v.title not in seen:
+            suggestions.append(v.title)
+            seen.add(v.title)
             
-    for v in recent:
-        if v[0] not in seen:
-            suggestions.append(v[0])
-            seen.add(v[0])
+    for v in recent_videos:
+        if v.title not in seen:
+            suggestions.append(v.title)
+            seen.add(v.title)
             
     for u in users:
-        val = f"@{u[0]}"
+        val = f"@{u.username}"
         if val not in seen:
             suggestions.append(val)
             seen.add(val)
@@ -100,7 +91,7 @@ async def get_trending_suggestions(db: Session = Depends(get_db)):
     return suggestions[:10]
 
 @router.get("/{video_id}", response_model=schemas.Video)
-def read_video(video_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user_optional)):
+def read_video(video_id: int, db: Session = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     user_id = current_user.id if current_user else None
     db_video = crud_video.get_video(db, video_id=video_id, current_user_id=user_id)
     if db_video is None:
@@ -113,8 +104,7 @@ async def background_process_video(
     video_type: str,
     title: str,
     video_id: int,
-    thumbnail_provided: bool, # Better name
-    db_session_factory,
+    thumbnail_provided: bool,
     task_id: str
 ):
     # This runs in background
@@ -146,7 +136,6 @@ async def background_process_video(
                                 print(f"Rust processing error: {status_data.get('message')}")
                                 return
                     elif status_resp.status_code == 404:
-                         # Task not found usually means it hasn't started or crashed
                          pass
                 except Exception as e:
                     print(f"Polling error (try {retries}): {e}")
@@ -162,8 +151,7 @@ async def background_process_video(
             print(f"Error in background processing: {e}")
             return
 
-    # Post-processing: Move files (now Upload to S3)
-    db = db_session_factory()
+    # Post-processing: Upload to S3
     try:
         from app.core.storage import s3_client
         
@@ -173,10 +161,9 @@ async def background_process_video(
             src = f"{temp_file_path}_{suffix}.mp4"
             if os.path.exists(src):
                 object_name = f"videos/{base_filename}_{suffix}.mp4"
-                if config.S3_BUCKET_NAME:
+                if config.B2_BUCKET_NAME:
                     return s3_client.upload_file(src, object_name, content_type="video/mp4")
                 else:
-                    print("S3 not configured, video lost")
                     return None
             return None
 
@@ -192,7 +179,7 @@ async def background_process_video(
         
         if not thumbnail_provided and os.path.exists(temp_thumb_path):
             object_name = f"thumbs/{base_filename}.jpg"
-            if config.S3_BUCKET_NAME:
+            if config.B2_BUCKET_NAME:
                 thumbnail_url = s3_client.upload_file(
                     temp_thumb_path, 
                     object_name, 
@@ -212,27 +199,32 @@ async def background_process_video(
         except Exception as e:
             print(f"Failed to get duration: {e}")
 
-        # Update DB
-        video = db.query(models.Video).filter(models.Video.id == video_id).first()
-        if video:
-            video.video_url = video_url
-            video.url_480p = url_480p
-            video.url_720p = url_720p
-            video.url_1080p = url_1080p
-            video.url_2k = url_2k
-            video.url_4k = url_4k
-            video.duration = duration
-            if thumbnail_url:
-                video.thumbnail_url = thumbnail_url
-            video.status = "approved"
-            db.commit()
+        # Update Database
+        db = SessionLocal()
+        try:
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.video_url = video_url
+                video.url_480p = url_480p
+                video.url_720p = url_720p
+                video.url_1080p = url_1080p
+                video.url_2k = url_2k
+                video.url_4k = url_4k
+                video.duration = duration
+                video.status = "approved"
+                
+                if thumbnail_url:
+                    video.thumbnail_url = thumbnail_url
+                
+                db.commit()
+        finally:
+            db.close()
             
     finally:
         # Clean up temp
         temp_dir = os.path.dirname(temp_file_path)
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
-        db.close()
 
 @router.post("/upload", response_model=schemas.Video)
 async def upload_video(
@@ -242,8 +234,9 @@ async def upload_video(
     file: UploadFile = File(...),
     thumbnail: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
+    # current_user is now a User model instance, not dict
     if not current_user.is_premium:
         if video_type == "flash" and current_user.flash_uploads >= 20:
             raise HTTPException(status_code=403, detail="Flash quota exceeded (20 max)")
@@ -256,10 +249,10 @@ async def upload_video(
         shutil.copyfileobj(file.file, buffer)
 
     # Initial DB record
-    video_data = schemas.VideoCreate(
+    video_create_data = schemas.VideoCreate(
         title=title,
         video_type=video_type,
-        video_url="", # Will be updated
+        video_url="", 
         thumbnail_url="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=60",
         processing_key=os.path.basename(temp_dir)
     )
@@ -269,34 +262,30 @@ async def upload_video(
         safe_filename = thumbnail.filename.replace(" ", "_")
         object_name = f"thumbs/custom_{int(os.path.getmtime(temp_file_path))}_{safe_filename}"
         
-        if config.S3_BUCKET_NAME:
-            video_data.thumbnail_url = s3_client.upload_fileobj(
+        if config.B2_BUCKET_NAME:
+            video_create_data.thumbnail_url = s3_client.upload_fileobj(
                 thumbnail.file,
                 object_name,
                 content_type=thumbnail.content_type
             )
-        else:
-            # Temporary fallback if bucket not set, but better to enforce
-             print("WARNING: S3 not configured, skipping custom thumbnail upload")
-             video_data.thumbnail_url = None
 
+    # Update quota
     if video_type == "flash":
-        current_user.flash_uploads += 1
+        current_user.flash_uploads = (current_user.flash_uploads or 0) + 1
     else:
-        current_user.home_uploads += 1
+        current_user.home_uploads = (current_user.home_uploads or 0) + 1
     
-    db_video = crud_video.create_video(db, video_data, user_id=current_user.id)
-    # create_video already commits and refreshes
+    db.commit() # Save user updates
+    
+    db_video = crud_video.create_video(db, video_create_data, user_id=current_user.id)
 
-    from app.db.session import SessionLocal
     background_tasks.add_task(
         background_process_video,
         temp_file_path,
         video_type,
         title,
         db_video.id,
-        thumbnail is not None, # Passes as bool
-        SessionLocal,
+        thumbnail is not None,
         db_video.processing_key
     )
 
@@ -316,24 +305,23 @@ async def get_processing_status(key: str):
 def view_video(
     video_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user_optional)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     video = crud_video.get_video(db, video_id=video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
     user_id = current_user.id if current_user else None
-    crud_video.increment_view(db, video_id=video_id, user_id=user_id)
-    return {"status": "success", "views": video.views}
+    updated_video = crud_video.increment_view(db, video_id=video_id, user_id=user_id)
+    return {"status": "success", "views": updated_video.views if updated_video else 0}
 
 @router.post("/{video_id}/comments", response_model=schemas.Comment)
 def create_comment(
     video_id: int,
     comment: schemas.CommentCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    # Verify video exists
     video = crud_video.get_video(db, video_id=video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -348,14 +336,18 @@ def read_comments(video_id: int, db: Session = Depends(get_db)):
 def like_video(
     video_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     video = crud_video.get_video(db, video_id=video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
     is_liked = crud_video.toggle_like(db, video_id=video_id, user_id=current_user.id)
-    likes_count = db.query(models.Like).filter(models.Like.video_id == video_id).count()
+    likes_count = db.query(func.count(schemas.Like.video_id)).filter(schemas.Like.video_id == video_id).scalar() or 0
+    # Wait, simple count
+    from app.models.models import Like
+    likes_count = db.query(func.count(Like.video_id)).filter(Like.video_id == video_id).scalar() or 0
+    
     return {"status": "success", "liked": is_liked, "likes_count": likes_count}
 
 @router.post("/{video_id}/share")
@@ -368,4 +360,20 @@ def share_video(
         raise HTTPException(status_code=404, detail="Video not found")
     
     crud_video.increment_share(db, video_id=video_id)
+    return {"status": "success"}
+
+@router.delete("/{video_id}")
+def delete_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    video = crud_video.get_video(db, video_id=video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    if video.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this video")
+    
+    crud_video.delete_video(db, video_id=video_id)
     return {"status": "success"}

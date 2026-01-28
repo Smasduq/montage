@@ -10,28 +10,43 @@ pub async fn process(video_path: &str, format: &str, skip_thumbnail: bool, statu
     validate_format(aspect_ratio, format)?;
 
     // 2. Transcode and Generate Thumbnail
-    // Resolutions: 480p, 720p, 1080p, 1440p (2K), 2160p (4K)
-    let resolutions = [480, 720, 1080, 1440, 2160];
-    let total_steps = resolutions.len() + (if skip_thumbnail { 0 } else { 1 });
-    
-    for (i, height) in resolutions.iter().enumerate() {
+    if format == "flash" {
+        // For flash videos, skip multi-resolution transcoding.
+        // Copy original to a standard resolution (720p) so the backend finds it easily.
         if let Some(ref map) = status_map {
             map.insert(task_id.clone(), TaskStatus {
-                progress: ((i as f32 / total_steps as f32) * 100.0) as u32,
+                progress: 50,
                 status: "processing".to_string(),
-                message: format!("Transcoding to {}p...", height),
+                message: "Optimizing flash video (copy)...".to_string(),
             });
         }
+        let output_path = format!("{}_720p.mp4", video_path);
+        std::fs::copy(video_path, &output_path)?;
+    } else {
+        // Resolutions: 480p, 720p, 1080p, 1440p (2K), 2160p (4K)
+        let resolutions = [480, 720, 1080, 1440, 2160];
+        let total_steps = resolutions.len() + (if skip_thumbnail { 0 } else { 1 });
+        
+        for (i, height) in resolutions.iter().enumerate() {
+            if let Some(ref map) = status_map {
+                map.insert(task_id.clone(), TaskStatus {
+                    progress: ((i as f32 / total_steps as f32) * 100.0) as u32,
+                    status: "processing".to_string(),
+                    message: format!("Transcoding to {}p...", height),
+                });
+            }
 
-        let output_path = format!("{}_{}p.mp4", video_path, height);
-        transcode(video_path, &output_path, *height).await?;
+            let output_path = format!("{}_{}p.mp4", video_path, height);
+            transcode(video_path, &output_path, *height).await?;
+        }
     }
 
     // Generate thumbnail from the original source for best quality
     if !skip_thumbnail {
         if let Some(ref map) = status_map {
+            let progress = if format == "flash" { 90 } else { 95 };
             map.insert(task_id.clone(), TaskStatus {
-                progress: ((resolutions.len() as f32 / total_steps as f32) * 100.0) as u32,
+                progress: progress,
                 status: "processing".to_string(),
                 message: "Generating thumbnail...".to_string(),
             });

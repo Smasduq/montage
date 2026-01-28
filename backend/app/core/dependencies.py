@@ -1,14 +1,16 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
-from app.db.session import get_db
 from app.core.config import SECRET_KEY, ALGORITHM
 from app.models import models
 from app.schemas import schemas
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.models.models import User
 
 async def get_current_user(
     db: Session = Depends(get_db), 
@@ -27,9 +29,11 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    user = db.query(models.User).filter(models.User.username == username).first()
-    if user is None:
+    # Fetch user from DB
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
         raise credentials_exception
+    
     return user
 
 async def get_current_user_optional(
@@ -46,13 +50,16 @@ async def get_current_user_optional(
     except JWTError:
         return None
     
-    user = db.query(models.User).filter(models.User.username == username).first()
+    # Fetch user from DB
+    user = db.query(User).filter(User.username == username).first()
     return user
 
 
 def role_checker(allowed_roles: list):
-    def checker(current_user: models.User = Depends(get_current_user)):
-        if current_user.role not in allowed_roles:
+    def checker(current_user: dict = Depends(get_current_user)):
+        # Handle dict or model
+        role = current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", None)
+        if role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Operation not permitted"

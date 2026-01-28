@@ -11,7 +11,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             <nav className="nav-menu">
                 <NavLink to="/" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <HomeIcon size={20} />
-                    <span>Explore</span>
+                    <span>Home</span>
                 </NavLink>
                 <NavLink to="/flash" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <Zap size={20} />
@@ -21,6 +21,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                     <Layout size={20} />
                     <span>Feed</span>
                 </NavLink>
+                {token && (
+                    <NavLink to="/insights" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                        <Zap size={20} color="#f59e0b" />
+                        <span>Insights</span>
+                    </NavLink>
+                )}
                 <div style={{ margin: '1.5rem 0', height: '1px', background: 'var(--border-glass)' }} />
                 <NavLink to="/upload" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <UploadIcon size={20} />
@@ -31,9 +37,9 @@ const Sidebar = ({ isOpen, onClose }) => {
             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {token ? (
                     <>
-                        <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{user?.role || 'User'}</div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{user?.username}</div>
+                        <div className="user-info">
+                            <div className="user-role">{user?.role || 'User'}</div>
+                            <div className="user-name">{user?.username}</div>
                         </div>
                         <button onClick={() => { logout(); onClose(); }} className="nav-item" style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                             <LogOut size={20} />

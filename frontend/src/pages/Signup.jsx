@@ -23,7 +23,7 @@ const Signup = () => {
         { label: 'Uppercase', met: /[A-Z]/.test(password) },
         { label: 'Lowercase', met: /[a-z]/.test(password) },
         { label: 'Digit', met: /[0-9]/.test(password) },
-        { label: 'Special symbol', met: /[!@#$%^&*()-_=+[\]{}|;:'",.<>/?`~]/.test(password) },
+        { label: 'Special symbol', met: /[!@#$%^&*()\-_=+[\]{}|;:'",.<>/?`~]/.test(password) },
     ];
 
     const isPasswordValid = passwordRequirements.every(req => req.met);

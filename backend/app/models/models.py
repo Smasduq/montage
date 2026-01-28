@@ -37,15 +37,6 @@ class User(Base):
     home_uploads = Column(Integer, default=0)
     bio = Column(String, nullable=True)
 
-class VerificationCode(Base):
-    __tablename__ = "verification_codes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, index=True)
-    code = Column(String)
-    expires_at = Column(DateTime)
-    created_at = Column(DateTime, default=func.now())
-
     videos = relationship("Video", back_populates="owner")
     posts = relationship("Post", back_populates="owner")
     reposts = relationship("Repost", back_populates="user")
@@ -65,6 +56,15 @@ class VerificationCode(Base):
         back_populates="follower",
         cascade="all, delete-orphan",
     )
+
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    code = Column(String)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=func.now())
 
 class Video(Base):
     __tablename__ = "videos"
@@ -160,3 +160,11 @@ class Repost(Base):
 
     user = relationship("User", back_populates="reposts")
     video = relationship("Video")
+
+class SponsoredAd(Base):
+    __tablename__ = "sponsored_ads"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    image_url = Column(String)
+    is_active = Column(Boolean, default=True)

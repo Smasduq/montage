@@ -1,25 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
 from typing import List, Optional
 
 from app.db.session import get_db
 from app.crud import user as crud_user
 from app.schemas import schemas
-from app.models import models
 from app.core.dependencies import get_current_user, get_current_user_optional
 from app.core import config
+from app.models.models import User, Video, Like, Follow
 
 router = APIRouter()
 
 @router.get("/me", response_model=schemas.User)
-def read_users_me(current_user: models.User = Depends(get_current_user)):
+def read_users_me(current_user: schemas.User = Depends(get_current_user)):
     return current_user
 
 @router.put("/me", response_model=schemas.UserUpdateResponse)
 def update_user_me(
     user_in: schemas.UserUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: schemas.User = Depends(get_current_user)
 ):
     # Check if username is taken if changing
     if user_in.username and user_in.username != current_user.username:
@@ -36,7 +37,6 @@ def update_user_me(
     access_token = None
     if user_in.username and user_in.username != current_user.username:
         from app.core.security import create_access_token
-        from app.core import config
         from datetime import timedelta
         
         access_token_expires = timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -50,7 +50,7 @@ def update_user_me(
 def get_profile(
     username: str, 
     db: Session = Depends(get_db),
-    current_user: Optional[models.User] = Depends(get_current_user_optional)
+    current_user: Optional[schemas.User] = Depends(get_current_user_optional)
 ):
     current_user_id = current_user.id if current_user else None
     profile = crud_user.get_user_profile(db, username=username, current_user_id=current_user_id)
@@ -62,7 +62,7 @@ def get_profile(
 def follow_user(
     user_id: int, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: schemas.User = Depends(get_current_user)
 ):
     is_following = crud_user.toggle_follow(db, follower_id=current_user.id, followed_id=user_id)
     return {"is_following": is_following}
@@ -75,35 +75,32 @@ def search_unified(
     if not q:
         return {"videos": [], "users": []}
     
-    # Simple search for users and videos
-    users = db.query(models.User).filter(
-        (models.User.username.ilike(f"%{q}%")) | 
-        (models.User.full_name.ilike(f"%{q}%"))
+    # Search for users
+    users = db.query(User).filter(
+        or_(
+            User.username.ilike(f"%{q}%"),
+            User.full_name.ilike(f"%{q}%")
+        )
     ).limit(10).all()
     
     from app.crud import video as crud_video
     videos = crud_video.search_videos(db, query_str=q)
     
     return {"videos": videos, "users": users}
+
 @router.post("/upload-avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: schemas.User = Depends(get_current_user)
 ):
-    import os
-    import shutil
     from uuid import uuid4
+    from app.core.storage import s3_client
     
     file_ext = file.filename.split(".")[-1]
     file_name = f"profiles/{uuid4()}.{file_ext}"
     
-    from app.core.storage import s3_client
-    
-    if not config.S3_BUCKET_NAME:
-         # Fallback to local if no S3 configured or raise error?
-         # For now, let's assume S3 is desired.
-         # But to prevent crashing if user didn't set env yet:
+    if not config.B2_BUCKET_NAME:
          raise HTTPException(status_code=500, detail="Server storage not configured")
 
     avatar_url = s3_client.upload_fileobj(
@@ -115,8 +112,47 @@ async def upload_avatar(
     if not avatar_url:
         raise HTTPException(status_code=500, detail="Failed to upload image")
     
+    # Update user in DB
     current_user.profile_pic = avatar_url
     db.commit()
     db.refresh(current_user)
     
     return {"profile_pic": avatar_url}
+
+@router.get("/me/insights")
+def get_user_insights(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    user_id = current_user.id
+    
+    # Total Views
+    total_views = db.query(func.sum(Video.views)).filter(Video.owner_id == user_id).scalar() or 0
+    
+    # Total Likes - Count likes on videos owned by user
+    total_likes = db.query(func.count(Like.user_id)).join(Video).filter(Video.owner_id == user_id).scalar() or 0
+    
+    # Total Earnings
+    total_earnings = db.query(func.sum(Video.earnings)).filter(Video.owner_id == user_id).scalar() or 0.0
+    
+    # Total Shares
+    total_shares = db.query(func.sum(Video.shares)).filter(Video.owner_id == user_id).scalar() or 0
+    
+    # Video counts
+    home_count = db.query(func.count(Video.id)).filter(Video.owner_id == user_id, Video.video_type == "home").scalar() or 0
+    flash_count = db.query(func.count(Video.id)).filter(Video.owner_id == user_id, Video.video_type == "flash").scalar() or 0
+    
+    # Followers/Following
+    followers_count = db.query(func.count(Follow.follower_id)).filter(Follow.followed_id == user_id).scalar() or 0
+    following_count = db.query(func.count(Follow.followed_id)).filter(Follow.follower_id == user_id).scalar() or 0
+    
+    return {
+        "total_views": total_views,
+        "total_likes": total_likes,
+        "total_earnings": total_earnings,
+        "total_shares": total_shares,
+        "home_videos": home_count,
+        "flash_videos": flash_count,
+        "followers": followers_count,
+        "following": following_count
+    }

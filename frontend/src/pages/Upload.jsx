@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Upload as UploadIcon, Video, Layout, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload as UploadIcon, Video, Layout, CheckCircle, FileVideo, Plus, X, ArrowRight, Gauge } from 'lucide-react';
 import { BASE_URL } from '../api';
 
 import { useAuth } from '../context/AuthContext';
@@ -8,17 +8,17 @@ import { useNotification } from '../context/NotificationContext';
 const Upload = () => {
     const { user, token } = useAuth();
     const [quotas, setQuotas] = useState({
-        flash: { used: 0, total: 20, icon: <Video /> },
-        home: { used: 0, total: 50, icon: <Video /> },
-        posts: { used: 0, total: Infinity, icon: <Layout /> }
+        flash: { used: 0, total: 20, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
+        home: { used: 0, total: 50, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
+        posts: { used: 0, total: Infinity, icon: <Layout size={24} />, color: 'hsl(280, 100%, 65%)' }
     });
 
     useEffect(() => {
         if (user) {
             setQuotas({
-                flash: { used: user.flash_uploads || 0, total: 20, icon: <Video /> },
-                home: { used: user.home_uploads || 0, total: 50, icon: <Video /> },
-                posts: { used: 0, total: Infinity, icon: <Layout /> }
+                flash: { used: user.flash_uploads || 0, total: 20, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
+                home: { used: user.home_uploads || 0, total: 50, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
+                posts: { used: 0, total: Infinity, icon: <Layout size={24} />, color: 'hsl(280, 100%, 65%)' }
             });
         }
     }, [user]);
@@ -28,6 +28,8 @@ const Upload = () => {
     const [title, setTitle] = useState('');
     const [file, setFile] = useState(null);
     const [thumbnailFile, setThumbnailFile] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
 
     const { showNotification, updateNotification, removeNotification } = useNotification();
 
@@ -41,7 +43,6 @@ const Upload = () => {
         const notificationId = showNotification('loading', `Uploading "${title}"...`, { progress: 0 });
 
         try {
-            const token = localStorage.getItem('token');
             const formData = new FormData();
             formData.append('title', title);
             formData.append('video_type', currentType);
@@ -50,9 +51,7 @@ const Upload = () => {
                 formData.append('thumbnail', thumbnailFile);
             }
 
-            // Using XMLHttpRequest for real upload progress
             const xhr = new XMLHttpRequest();
-
             const uploadPromise = new Promise((resolve, reject) => {
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
@@ -71,9 +70,7 @@ const Upload = () => {
                         }
                     }
                 };
-
                 xhr.onerror = () => reject(new Error('Network error during upload'));
-
                 xhr.open('POST', `${BASE_URL}/videos/upload`);
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);
@@ -81,17 +78,15 @@ const Upload = () => {
 
             const data = await uploadPromise;
 
-            // Switch to Processing
             updateNotification(notificationId, {
                 type: 'processing',
                 status: 'Processing video...',
                 progress: 0,
-                message: 'Starting transcoding...'
+                message: currentType === 'flash' ? 'Optimizing instantly...' : 'Starting transcoding...'
             });
 
             const processingKey = data.processing_key;
 
-            // Poll for processing progress
             if (processingKey) {
                 const pollInterval = setInterval(async () => {
                     try {
@@ -106,7 +101,7 @@ const Upload = () => {
                                 updateNotification(notificationId, {
                                     type: 'success',
                                     status: 'Upload Complete!',
-                                    message: `"${title}" has been processed and is now live.`,
+                                    message: `"${title}" is now live.`,
                                     progress: 100
                                 });
                                 setTimeout(() => removeNotification(notificationId), 3000);
@@ -123,12 +118,12 @@ const Upload = () => {
                                 updateNotification(notificationId, {
                                     type: 'error',
                                     status: 'Processing Failed',
-                                    message: statusData.message || 'Unknown error occurred during processing.'
+                                    message: statusData.message || 'Error occurred during processing.'
                                 });
                             } else {
                                 updateNotification(notificationId, {
                                     progress: statusData.progress,
-                                    status: 'Processing Video...',
+                                    status: 'Processing...',
                                     message: statusData.message
                                 });
                             }
@@ -146,33 +141,121 @@ const Upload = () => {
         }
     };
 
-    return (
-        <div className="upload-container page-container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', marginBottom: '0.5rem' }}>Upload Dashboard</h1>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '3rem' }}>Manage your content and track your creator quotas.</p>
+    const onDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
 
-            <div className="video-grid" style={{ marginBottom: '4rem' }}>
+    const onDragLeave = () => setIsDragging(false);
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile && droppedFile.type.startsWith('video/')) {
+            setFile(droppedFile);
+        }
+    };
+
+    return (
+        <div className="upload-page" style={{
+            minHeight: '100vh',
+            padding: '2rem 1rem 8rem',
+            background: 'radial-gradient(circle at top right, rgba(255, 62, 62, 0.05) 0%, transparent 40%)'
+        }}>
+            <div className="page-header" style={{ maxWidth: '1200px', margin: '0 auto 4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                    <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: 'var(--accent-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 0 20px var(--accent-glow)'
+                    }}>
+                        <UploadIcon color="white" size={20} />
+                    </div>
+                    <span style={{ fontWeight: 800, letterSpacing: '2px', color: 'var(--accent-primary)', fontSize: '0.9rem' }}>CREATOR STUDIO</span>
+                </div>
+                <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 800, lineHeight: 1, marginBottom: '1rem' }}>
+                    Publish <span style={{
+                        background: 'linear-gradient(to right, #fff, rgba(255,255,255,0.4))',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent'
+                    }}>Your Vision</span>
+                </h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', maxWidth: '600px' }}>
+                    Upload, track, and manage your content with premium tools designed for creators.
+                </p>
+            </div>
+
+            <div className="quota-grid" style={{
+                maxWidth: '1200px',
+                margin: '0 auto',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+                gap: '2rem'
+            }}>
                 {Object.entries(quotas).map(([type, data]) => (
-                    <div key={type} className="glass" style={{ padding: '2rem', borderRadius: '24px', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', color: 'var(--accent-primary)' }}>
+                    <div key={type} className="glass hover-scale" style={{
+                        padding: '2.5rem',
+                        borderRadius: '32px',
+                        border: '1px solid var(--border-glass)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.5rem',
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            position: 'absolute',
+                            top: '-20px',
+                            right: '-20px',
+                            width: '100px',
+                            height: '100px',
+                            background: data.color,
+                            opacity: 0.05,
+                            filter: 'blur(40px)',
+                            borderRadius: '50%'
+                        }} />
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{
+                                padding: '1rem',
+                                background: 'rgba(255,255,255,0.03)',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                color: data.color
+                            }}>
                                 {data.icon}
                             </div>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{type} Quota</span>
-                        </div>
-
-                        <div style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem' }}>
-                            {data.used} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ {data.total === Infinity ? '∞' : data.total}</span>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    {type} quota
+                                </div>
+                                <div style={{ fontSize: '1.8rem', fontWeight: 800 }}>
+                                    {data.used} <span style={{ fontSize: '1rem', opacity: 0.4 }}>/ {data.total === Infinity ? '∞' : data.total}</span>
+                                </div>
+                            </div>
                         </div>
 
                         {data.total !== Infinity && (
-                            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden' }}>
-                                <div style={{
-                                    width: `${(data.used / data.total) * 100}%`,
-                                    height: '100%',
-                                    background: 'var(--accent-primary)',
-                                    boxShadow: '0 0 10px var(--accent-glow)'
-                                }} />
+                            <div style={{ marginTop: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.8rem', fontWeight: 600 }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Used Capacity</span>
+                                    <span>{Math.round((data.used / data.total) * 100)}%</span>
+                                </div>
+                                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        width: `${(data.used / data.total) * 100}%`,
+                                        height: '100%',
+                                        background: data.color,
+                                        boxShadow: `0 0 15px ${data.color}`,
+                                        transition: 'width 1s cubic-bezier(0.22, 1, 0.36, 1)'
+                                    }} />
+                                </div>
                             </div>
                         )}
 
@@ -183,131 +266,239 @@ const Upload = () => {
                             }}
                             className="btn-active"
                             style={{
-                                marginTop: '1.5rem',
                                 width: '100%',
-                                padding: '1rem',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid var(--border-glass)',
-                                borderRadius: '12px',
-                                color: 'white',
-                                fontWeight: 600,
+                                padding: '1.2rem',
+                                background: 'white',
+                                color: 'black',
+                                border: 'none',
+                                borderRadius: '16px',
+                                fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'var(--transition-smooth)'
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.8rem',
+                                marginTop: '0.5rem'
                             }}
                         >
-                            Upload New
+                            Upload {type.charAt(0).toUpperCase() + type.slice(1)} <Plus size={18} />
                         </button>
                     </div>
                 ))}
+            </div>
+
+            <div className="manage-content-section" style={{ maxWidth: '1200px', margin: '4rem auto 0' }}>
+                <div className="glass hover-scale" style={{
+                    padding: '2.5rem',
+                    borderRadius: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%)'
+                }} onClick={() => navigate('/manage-videos')}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                        <div style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '20px',
+                            background: 'rgba(255,255,255,0.03)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <Gauge size={30} />
+                        </div>
+                        <div>
+                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Manage Your Content</h2>
+                            <p style={{ color: 'var(--text-secondary)' }}>Edit, organize, or delete your existing uploads.</p>
+                        </div>
+                    </div>
+                    <div className="glass" style={{
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <ArrowRight size={20} />
+                    </div>
+                </div>
             </div>
 
             {showModal && (
                 <div style={{
                     position: 'fixed',
                     top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.8)',
+                    background: 'rgba(0,0,0,0.85)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 1000,
-                    backdropFilter: 'blur(10px)'
-                }}>
+                    zIndex: 2000,
+                    backdropFilter: 'blur(15px)',
+                    padding: '1rem'
+                }} onClick={() => setShowModal(false)}>
                     <div className="glass" style={{
-                        width: '500px',
+                        width: '600px',
+                        maxWidth: '100%',
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
                         padding: '3rem',
-                        borderRadius: '32px',
+                        borderRadius: '40px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '2rem'
-                    }}>
-                        <h2 style={{ fontSize: '1.8rem' }}>Upload {currentType}</h2>
+                        gap: '2.5rem',
+                        position: 'relative'
+                    }} onClick={e => e.stopPropagation()}>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Video Title</label>
+                        <button
+                            onClick={() => setShowModal(false)}
+                            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '50%', color: 'white', padding: '0.5rem', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ color: currentType ? quotas[currentType].color : 'var(--accent-primary)', marginBottom: '0.8rem', display: 'flex', justifyContent: 'center' }}>
+                                {currentType && quotas[currentType].icon}
+                            </div>
+                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Publish {currentType}</h2>
+                            <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Fill in the details to share your creation.</p>
+                        </div>
+
+                        {/* Title Input */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Content Title</label>
                             <input
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Enter a catchy title..."
+                                placeholder="A catchy name for your video..."
                                 style={{
-                                    padding: '1rem',
+                                    padding: '1.2rem',
                                     background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid var(--border-glass)',
-                                    borderRadius: '12px',
-                                    color: 'white'
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '16px',
+                                    color: 'white',
+                                    fontSize: '1rem'
                                 }}
                             />
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Select Video File</label>
-                            <input
-                                type="file"
-                                onChange={(e) => setFile(e.target.files[0])}
-                                accept="video/*"
+                        {/* Drag & Drop Area */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Video File</label>
+                            <div
+                                onDragOver={onDragOver}
+                                onDragLeave={onDragLeave}
+                                onDrop={onDrop}
+                                onClick={() => fileInputRef.current.click()}
                                 style={{
-                                    padding: '1rem',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid var(--border-glass)',
-                                    borderRadius: '12px',
-                                    color: 'white'
+                                    border: `2px dashed ${isDragging ? (currentType ? quotas[currentType].color : 'var(--accent-primary)') : 'rgba(255,255,255,0.1)'}`,
+                                    borderRadius: '24px',
+                                    padding: '3rem',
+                                    textAlign: 'center',
+                                    background: isDragging ? 'rgba(255,255,255,0.05)' : 'transparent',
+                                    cursor: 'pointer',
+                                    transition: 'var(--transition-smooth)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '1rem'
                                 }}
-                            />
-                        </div>
-
-                        {currentType === 'home' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Custom Thumbnail (Optional)</label>
+                            >
                                 <input
                                     type="file"
-                                    onChange={(e) => setThumbnailFile(e.target.files[0])}
-                                    accept="image/*"
-                                    style={{
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    accept="video/*"
+                                    onChange={(e) => setFile(e.target.files[0])}
+                                />
+                                <div style={{
+                                    width: '60px', height: '60px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: file ? '#4ade80' : 'var(--text-secondary)'
+                                }}>
+                                    {file ? <CheckCircle size={30} /> : <UploadIcon size={30} />}
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{file ? file.name : 'Drag & drop video'}</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.3rem' }}>
+                                        {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'or click to browse from device'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Thumbnail (for Home only) */}
+                        {currentType === 'home' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Cover Image (Optional)</label>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                    <label style={{
+                                        flex: 1,
                                         padding: '1rem',
                                         background: 'rgba(255,255,255,0.05)',
-                                        border: '1px solid var(--border-glass)',
-                                        borderRadius: '12px',
-                                        color: 'white'
-                                    }}
-                                />
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '16px',
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.8rem',
+                                        fontSize: '0.9rem'
+                                    }}>
+                                        <Plus size={18} />
+                                        {thumbnailFile ? thumbnailFile.name : 'Select Thumbnail'}
+                                        <input
+                                            type="file"
+                                            style={{ display: 'none' }}
+                                            accept="image/*"
+                                            onChange={(e) => setThumbnailFile(e.target.files[0])}
+                                        />
+                                    </label>
+                                    {thumbnailFile && (
+                                        <button
+                                            onClick={() => setThumbnailFile(null)}
+                                            style={{ background: 'rgba(255,62,62,0.1)', border: 'none', borderRadius: '12px', color: 'var(--accent-primary)', padding: '0.8rem' }}
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="btn-active"
-                                style={{
-                                    flex: 1,
-                                    padding: '1rem',
-                                    background: 'transparent',
-                                    border: '1px solid var(--border-glass)',
-                                    borderRadius: '12px',
-                                    color: 'white'
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleUpload}
-                                className="btn-active"
-                                style={{
-                                    flex: 2,
-                                    padding: '1rem',
-                                    background: 'var(--accent-primary)',
-                                    border: 'none',
-                                    borderRadius: '12px',
-                                    color: 'white',
-                                    fontWeight: 700
-                                }}
-                            >
-                                Start Upload
-                            </button>
-                        </div>
+                        <button
+                            onClick={handleUpload}
+                            className="btn-active"
+                            disabled={!file || !title}
+                            style={{
+                                width: '100%',
+                                padding: '1.2rem',
+                                background: currentType ? quotas[currentType].color : 'var(--accent-primary)',
+                                border: 'none',
+                                borderRadius: '16px',
+                                color: 'white',
+                                fontWeight: 800,
+                                fontSize: '1.1rem',
+                                boxShadow: `0 10px 30px ${currentType ? quotas[currentType].color : 'var(--accent-primary)'}40`,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '1rem',
+                                opacity: (!file || !title) ? 0.5 : 1
+                            }}
+                        >
+                            Start Publishing <ArrowRight size={20} />
+                        </button>
                     </div>
                 </div>
             )}
-
         </div>
     );
 };

@@ -18,3 +18,11 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_ENDPOINT_URL = os.getenv("B2_ENDPOINT_URL") or os.getenv("S3_ENDPOINT_URL")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static")
+
+# Supabase SDK Config - Kept for Auth/Legacy
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Database Configuration
+# Default to SQLite for local development if not set
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./montage.db")

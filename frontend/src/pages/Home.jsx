@@ -111,19 +111,20 @@ const Home = () => {
     return (
         <div className="home-container page-container">
             {/* Hero Section */}
-            <section className="hero-section">
+            <section className="hero-section" style={{ height: 'auto', minHeight: '30vh' }}>
                 <img src={featured.image} alt="Featured" className="hero-image" />
-                <div className="hero-content">
-                    <div className="hero-badge">
-                        <Flame size={16} /> <span>PREMIUM FEATURE</span>
+                <div className="hero-content" style={{ padding: '2rem 1.5rem' }}>
+                    <div className="hero-badge" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}>
+                        <Flame size={14} /> <span>PREMIUM FEATURE</span>
                     </div>
-                    <h1 className="hero-title">{featured.title}</h1>
-                    <p className="hero-desc">{featured.desc}</p>
+                    <h1 className="hero-title" style={{ fontSize: '1.8rem', lineHeight: '1.2' }}>{featured.title}</h1>
+                    <p className="hero-desc" style={{ fontSize: '0.9rem', marginBottom: '1.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{featured.desc}</p>
                     <button
                         className="btn-active hero-btn"
                         onClick={() => navigate(`/watch/${videos[0]?.id || 1}`)}
+                        style={{ padding: '0.8rem 1.5rem', fontSize: '0.9rem' }}
                     >
-                        <Play fill="white" size={20} /> WATCH NOW
+                        <Play fill="white" size={18} /> WATCH NOW
                     </button>
                 </div>
             </section>
@@ -233,8 +234,8 @@ const Home = () => {
 
                     <div className="flash-shelf-grid" style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-                        gap: '1.5rem',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                        gap: '1rem',
                         marginTop: '1.5rem'
                     }}>
                         {flashVideos.slice(0, 18).map(flash => (
