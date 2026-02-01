@@ -12,11 +12,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "2880
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 RUST_SERVICE_URL = os.getenv("RUST_SERVICE_URL", "http://127.0.0.1:8081") # default port changed to matched rust service
-S3_BUCKET_NAME = os.getenv("B2_BUCKET_NAME") or os.getenv("S3_BUCKET_NAME")
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-S3_ENDPOINT_URL = os.getenv("B2_ENDPOINT_URL") or os.getenv("S3_ENDPOINT_URL")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static")
 
 # Supabase SDK Config - Kept for Auth/Legacy

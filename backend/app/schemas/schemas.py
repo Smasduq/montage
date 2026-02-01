@@ -122,6 +122,7 @@ class Video(VideoBase):
     liked_by_user: bool = False
     duration: int = 0
     processing_key: Optional[str] = None
+    failed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -137,6 +138,7 @@ class Post(PostBase):
     id: int
     owner_id: int
     owner: Optional[UserBase] = None
+    created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -163,6 +165,12 @@ class Comment(CommentBase):
     owner: Optional[UserBase] = None
     created_at: Optional[datetime] = None
 
+    model_config = ConfigDict(from_attributes=True)
+
+class Achievement(BaseModel):
+    milestone_name: str
+    reached_at: datetime
+    
     model_config = ConfigDict(from_attributes=True)
 
 class UnifiedSearchResponse(BaseModel):

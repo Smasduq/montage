@@ -5,9 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import axios from 'axios';
 
-import { BASE_URL } from '../api';
-
-const API_BASE_URL = BASE_URL;
+import { API_BASE_URL } from '../api';
 
 const Settings = () => {
     const { user, token, updateAuthToken, setUser } = useAuth();

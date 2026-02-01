@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload as UploadIcon, Video, Layout, CheckCircle, FileVideo, Plus, X, ArrowRight, Gauge } from 'lucide-react';
-import { BASE_URL } from '../api';
+import { API_BASE_URL } from '../api';
 
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
 const Upload = () => {
-    const { user, token } = useAuth();
+    const { user, token, refreshUser } = useAuth();
+
+    useEffect(() => {
+        if (token) refreshUser();
+    }, []);
+
     const [quotas, setQuotas] = useState({
         flash: { used: 0, total: 50, icon: <FileVideo size={24} />, color: 'hsl(345, 100%, 55%)' },
         home: { used: 0, total: 20, icon: <Video size={24} />, color: 'hsl(210, 100%, 55%)' },
@@ -81,7 +86,7 @@ const Upload = () => {
                     }
                 };
                 xhr.onerror = () => reject(new Error('Network error during upload'));
-                xhr.open('POST', `${BASE_URL}/videos/upload`);
+                xhr.open('POST', `${API_BASE_URL}/videos/upload`);
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);
             });
@@ -100,7 +105,7 @@ const Upload = () => {
             if (processingKey) {
                 const pollInterval = setInterval(async () => {
                     try {
-                        const statusResp = await fetch(`${BASE_URL}/videos/status/${encodeURIComponent(processingKey)}`, {
+                        const statusResp = await fetch(`${API_BASE_URL}/videos/status/${encodeURIComponent(processingKey)}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
                         const statusData = await statusResp.json();
@@ -305,23 +310,26 @@ const Upload = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%)'
-                }} onClick={() => navigate('/manage-videos')}>
+                    background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%)',
+                    border: '1px solid rgba(255,255,255,0.05)'
+                }} onClick={() => navigate('/manage')}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                         <div style={{
                             width: '60px',
                             height: '60px',
                             borderRadius: '20px',
-                            background: 'rgba(255,255,255,0.03)',
+                            background: 'rgba(255,158,11,0.1)',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            color: '#f59e0b',
+                            boxShadow: '0 0 20px rgba(245, 158, 11, 0.2)'
                         }}>
-                            <Gauge size={30} />
+                            <Layout size={30} />
                         </div>
                         <div>
-                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Manage Your Content</h2>
-                            <p style={{ color: 'var(--text-secondary)' }}>Edit, organize, or delete your existing uploads.</p>
+                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Manage Your Workspace</h2>
+                            <p style={{ color: 'var(--text-secondary)' }}>Organize your videos, posts, and track your content status.</p>
                         </div>
                     </div>
                     <div className="glass" style={{
@@ -330,7 +338,8 @@ const Upload = () => {
                         borderRadius: '50%',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        color: 'var(--accent-primary)'
                     }}>
                         <ArrowRight size={20} />
                     </div>

@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, SessionLocal
@@ -12,7 +13,7 @@ from app.schemas import schemas
 from app.core.dependencies import get_current_user, get_current_user_optional
 from app.core import config
 from app.core.config import FLASH_QUOTA_LIMIT, HOME_QUOTA_LIMIT
-from app.models.models import Video
+from app.models.models import Video, User
 
 router = APIRouter()
 
@@ -108,101 +109,117 @@ async def background_process_video(
     thumbnail_provided: bool,
     task_id: str
 ):
-    # This runs in background
-    async with httpx.AsyncClient() as client:
+    db = SessionLocal()
+    try:
+        # Phase 1: Communication with Rust Service
         try:
-            rust_response = await client.post(
-                f"{config.RUST_SERVICE_URL}/process",
-                json={
-                    "video_id": temp_file_path,
-                    "target_format": video_type,
-                    "skip_thumbnail": thumbnail_provided,
-                    "task_id": task_id
-                },
-                timeout=600.0
-            )
-            
-            import asyncio
-            max_retries = 300 # 10 minutes with 2s sleep
-            retries = 0
-            while retries < max_retries:
-                try:
-                    status_resp = await client.get(f"{config.RUST_SERVICE_URL}/status/{task_id}")
-                    if status_resp.status_code == 200:
-                        status_data = status_resp.json()
-                        if status_data:
-                            if status_data.get("status") == "completed":
-                                break
-                            if status_data.get("status") == "error":
-                                print(f"Rust processing error: {status_data.get('message')}")
-                                return
-                    elif status_resp.status_code == 404:
-                         pass
-                except Exception as e:
-                    print(f"Polling error (try {retries}): {e}")
+            async with httpx.AsyncClient() as client:
+                rust_response = await client.post(
+                    f"{config.RUST_SERVICE_URL}/process",
+                    json={
+                        "video_id": temp_file_path,
+                        "target_format": video_type,
+                        "skip_thumbnail": thumbnail_provided,
+                        "task_id": task_id
+                    },
+                    timeout=600.0
+                )
                 
-                await asyncio.sleep(2)
-                retries += 1
-            
-            if retries >= max_retries:
-                print(f"Background processing timed out for task {task_id}")
-                return
+                import asyncio
+                max_retries = 300 # 10 minutes with 2s sleep
+                retries = 0
+                while retries < max_retries:
+                    try:
+                        status_resp = await client.get(f"{config.RUST_SERVICE_URL}/status/{task_id}")
+                        if status_resp.status_code == 200:
+                            status_data = status_resp.json()
+                            if status_data:
+                                if status_data.get("status") == "completed":
+                                    break
+                                if status_data.get("status") == "error":
+                                    raise Exception(f"Rust processing error: {status_data.get('message')}")
+                        elif status_resp.status_code == 404:
+                             pass
+                    except Exception as e:
+                        if "Rust processing error" in str(e):
+                            raise e
+                        print(f"Polling error (try {retries}): {e}")
+                    
+                    await asyncio.sleep(2)
+                    retries += 1
+                
+                if retries >= max_retries:
+                    raise Exception(f"Background processing timed out for task {task_id}")
 
         except Exception as e:
-            print(f"Error in background processing: {e}")
+            print(f"Error in background processing phase: {e}")
+            # Rollback quota and mark as failed
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.status = "failed"
+                video.failed_at = func.now()
+                owner = db.query(User).filter(User.id == video.owner_id).first()
+                if owner:
+                    if video.video_type == "flash":
+                        owner.flash_uploads = max(0, (owner.flash_uploads or 1) - 1)
+                    else:
+                        owner.home_uploads = max(0, (owner.home_uploads or 1) - 1)
+                db.commit()
             return
 
-    # Post-processing: Upload to S3
-    try:
-        from app.core.storage import s3_client
-        
-        base_filename = f"{title.replace(' ', '_')}_{int(os.path.getmtime(temp_file_path))}"
-        
-        def save_resolution(suffix):
-            src = f"{temp_file_path}_{suffix}.mp4"
-            if os.path.exists(src):
-                object_name = f"videos/{base_filename}_{suffix}.mp4"
-                if config.B2_BUCKET_NAME:
-                    return s3_client.upload_file(src, object_name, content_type="video/mp4")
-                else:
+        # Phase 2: Post-processing (Moving files and updating DB to approved)
+        try:
+            # Ensure base filename is safe and unique
+            clean_title = "".join([c if c.isalnum() else "_" for c in title])
+            timestamp = int(os.path.getmtime(temp_file_path))
+            base_filename = f"{clean_title}_{timestamp}"
+            
+            def save_resolution(suffix):
+                src = f"{temp_file_path}_{suffix}.mp4"
+                if not os.path.exists(src):
                     return None
-            return None
+                    
+                # Local Storage
+                dest_dir = os.path.join(config.STATIC_DIR, "videos")
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_path = os.path.join(dest_dir, f"{base_filename}_{suffix}.mp4")
+                shutil.copy2(src, dest_path)
+                return f"{config.BASE_URL}/static/videos/{base_filename}_{suffix}.mp4"
 
-        url_480p = save_resolution("480p")
-        url_720p = save_resolution("720p")
-        url_1080p = save_resolution("1080p")
-        url_2k = save_resolution("1440p")
-        url_4k = save_resolution("2160p")
-        
-        video_url = url_720p or url_1080p or url_480p or ""
-        temp_thumb_path = f"{temp_file_path}.jpg"
-        thumbnail_url = None
-        
-        if not thumbnail_provided and os.path.exists(temp_thumb_path):
-            object_name = f"thumbs/{base_filename}.jpg"
-            if config.B2_BUCKET_NAME:
-                thumbnail_url = s3_client.upload_file(
-                    temp_thumb_path, 
-                    object_name, 
-                    content_type="image/jpeg"
-                )
+            url_480p = save_resolution("480p")
+            url_720p = save_resolution("720p")
+            url_1080p = save_resolution("1080p")
+            url_2k = save_resolution("1440p")
+            url_4k = save_resolution("2160p")
+            
+            # Fallback logic for the main video URL
+            video_url = url_720p or url_1080p or url_480p or ""
+            
+            temp_thumb_path = f"{temp_file_path}.jpg"
+            thumbnail_url = None
+            
+            if not thumbnail_provided and os.path.exists(temp_thumb_path):
+                # Local Storage
+                dest_dir = os.path.join(config.STATIC_DIR, "thumbs")
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_path = os.path.join(dest_dir, f"{base_filename}.jpg")
+                shutil.copy2(temp_thumb_path, dest_path)
+                thumbnail_url = f"{config.BASE_URL}/static/thumbs/{base_filename}.jpg"
 
-        # Get Duration
-        duration = 0
-        try:
-            import subprocess
-            probe_cmd = [
-                "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1", temp_file_path
-            ]
-            duration_str = subprocess.check_output(probe_cmd).decode('utf-8').strip()
-            duration = int(float(duration_str))
-        except Exception as e:
-            print(f"Failed to get duration: {e}")
+            # Get Duration
+            duration = 0
+            try:
+                import subprocess
+                probe_cmd = [
+                    "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1", temp_file_path
+                ]
+                duration_str = subprocess.check_output(probe_cmd).decode('utf-8').strip()
+                duration = int(float(duration_str))
+            except Exception as e:
+                print(f"Failed to get duration: {e}")
 
-        # Update Database
-        db = SessionLocal()
-        try:
+            # Update Database
             video = db.query(Video).filter(Video.id == video_id).first()
             if video:
                 video.video_url = video_url
@@ -213,19 +230,74 @@ async def background_process_video(
                 video.url_4k = url_4k
                 video.duration = duration
                 video.status = "approved"
+                video.failed_at = None # Clear if it was a retry
                 
                 if thumbnail_url:
                     video.thumbnail_url = thumbnail_url
                 
                 db.commit()
-        finally:
-            db.close()
-            
+        except Exception as e:
+            print(f"Error in post-processing: {e}")
+
     finally:
+        db.close()
         # Clean up temp
         temp_dir = os.path.dirname(temp_file_path)
         if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"Error cleaning up temp dir {temp_dir}: {e}")
+def delete_video_files(video: Video):
+    """Utility to delete all local files associated with a video."""
+    urls = [
+        video.video_url,
+        video.url_480p,
+        video.url_720p,
+        video.url_1080p,
+        video.url_2k,
+        video.url_4k,
+        video.thumbnail_url
+    ]
+    
+    for url in urls:
+        if url and url.startswith(config.BASE_URL):
+            # Convert URL back to local path
+            # BASE_URL/static/videos/... -> config.STATIC_DIR/videos/...
+            relative_path = url.replace(f"{config.BASE_URL}/static/", "")
+            # Handle mixed slashes on Windows
+            local_path = os.path.join(config.STATIC_DIR, relative_path.replace("/", os.sep))
+            
+            if os.path.exists(local_path):
+                try:
+                    os.remove(local_path)
+                    print(f"Deleted file: {local_path}")
+                except Exception as e:
+                    print(f"Failed to delete file {local_path}: {e}")
+
+@router.delete("/{video_id}")
+def delete_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Check ownership or admin status
+    if video.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this video")
+    
+    # Delete physical files
+    delete_video_files(video)
+    
+    # Delete from DB
+    db.delete(video)
+    db.commit()
+    
+    return {"status": "success", "message": "Video deleted successfully"}
+
 
 @router.post("/upload", response_model=schemas.Video)
 async def upload_video(
@@ -344,12 +416,12 @@ def like_video(
         raise HTTPException(status_code=404, detail="Video not found")
     
     is_liked = crud_video.toggle_like(db, video_id=video_id, user_id=current_user.id)
-    likes_count = db.query(func.count(schemas.Like.video_id)).filter(schemas.Like.video_id == video_id).scalar() or 0
-    # Wait, simple count
+    
     from app.models.models import Like
     likes_count = db.query(func.count(Like.video_id)).filter(Like.video_id == video_id).scalar() or 0
     
     return {"status": "success", "liked": is_liked, "likes_count": likes_count}
+
 
 @router.post("/{video_id}/share")
 def share_video(
@@ -361,20 +433,4 @@ def share_video(
         raise HTTPException(status_code=404, detail="Video not found")
     
     crud_video.increment_share(db, video_id=video_id)
-    return {"status": "success"}
-
-@router.delete("/{video_id}")
-def delete_video(
-    video_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    video = crud_video.get_video(db, video_id=video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    
-    if video.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this video")
-    
-    crud_video.delete_video(db, video_id=video_id)
     return {"status": "success"}

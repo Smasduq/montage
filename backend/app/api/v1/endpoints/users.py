@@ -95,35 +95,27 @@ async def upload_avatar(
     current_user: schemas.User = Depends(get_current_user)
 ):
     from uuid import uuid4
-    from app.core.storage import s3_client
     
     file_ext = file.filename.split(".")[-1]
     file_name = f"profiles/{uuid4()}.{file_ext}"
     
     avatar_url = None
 
-    if config.B2_BUCKET_NAME:
-        avatar_url = s3_client.upload_fileobj(
-            file.file, 
-            file_name, 
-            content_type=file.content_type
-        )
-    else:
-        # Local fallback
-        import os
-        import shutil
+    # Local storage for avatars
+    import os
+    import shutil
+    
+    static_dir = config.STATIC_DIR
+    profiles_dir = os.path.join(static_dir, "profiles")
+    os.makedirs(profiles_dir, exist_ok=True)
+    
+    local_filename = f"{uuid4()}.{file_ext}"
+    local_path = os.path.join(profiles_dir, local_filename)
+    
+    with open(local_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
         
-        static_dir = config.STATIC_DIR
-        profiles_dir = os.path.join(static_dir, "profiles")
-        os.makedirs(profiles_dir, exist_ok=True)
-        
-        local_filename = f"{uuid4()}.{file_ext}"
-        local_path = os.path.join(profiles_dir, local_filename)
-        
-        with open(local_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        avatar_url = f"{config.BASE_URL}/static/profiles/{local_filename}"
+    avatar_url = f"{config.BASE_URL}/static/profiles/{local_filename}"
 
     if not avatar_url:
         raise HTTPException(status_code=500, detail="Failed to upload image")
@@ -141,6 +133,7 @@ def get_user_insights(
     current_user: schemas.User = Depends(get_current_user)
 ):
     user_id = current_user.id
+    from app.models.models import Achievement
     
     # Total Views
     total_views = db.query(func.sum(Video.views)).filter(Video.owner_id == user_id).scalar() or 0
@@ -162,6 +155,26 @@ def get_user_insights(
     followers_count = db.query(func.count(Follow.follower_id)).filter(Follow.followed_id == user_id).scalar() or 0
     following_count = db.query(func.count(Follow.followed_id)).filter(Follow.follower_id == user_id).scalar() or 0
     
+    # Milestone Logic
+    milestones = [100, 500, 1000, 5000, 10000, 50000, 100000]
+    next_milestone = next((m for m in milestones if m > total_views), milestones[-1] * 2)
+    
+    # Check for newly reached milestones
+    existing_achievements = db.query(Achievement).filter(Achievement.user_id == user_id).all()
+    achieved_names = {a.milestone_name for a in existing_achievements}
+    
+    new_milestone_reached = None
+    for m in milestones:
+        m_name = f"{m}_VIEWS"
+        if total_views >= m and m_name not in achieved_names:
+            new_achievement = Achievement(user_id=user_id, milestone_name=m_name)
+            db.add(new_achievement)
+            new_milestone_reached = m_name
+            achieved_names.add(m_name)
+    
+    if new_milestone_reached:
+        db.commit()
+    
     return {
         "total_views": total_views,
         "total_likes": total_likes,
@@ -170,5 +183,8 @@ def get_user_insights(
         "home_videos": home_count,
         "flash_videos": flash_count,
         "followers": followers_count,
-        "following": following_count
+        "following": following_count,
+        "next_milestone": next_milestone,
+        "new_milestone_reached": new_milestone_reached,
+        "achievements": [a.milestone_name for a in existing_achievements]
     }

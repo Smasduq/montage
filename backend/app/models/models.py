@@ -16,6 +16,7 @@ class ApprovalStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    FAILED = "failed"
 
 class User(Base):
     __tablename__ = "users"
@@ -30,11 +31,9 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     is_onboarded = Column(Boolean, default=False)
-    profile_pic = Column(String, default=f"{BASE_URL}/static/defaults/default_avatar.png")
+    profile_pic = Column(String, nullable=True) # Will use dynamic UI-Avatars if null
     
     # Quotas for free users
-    flash_uploads = Column(Integer, default=0)
-    home_uploads = Column(Integer, default=0)
     flash_uploads = Column(Integer, default=0)
     home_uploads = Column(Integer, default=0)
     bio = Column(String, nullable=True)
@@ -96,6 +95,7 @@ class Video(Base):
     shares = Column(Integer, default=0)
     duration = Column(Integer, default=0)
     processing_key = Column(String, nullable=True)
+    failed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     owner = relationship("User", back_populates="videos")
@@ -170,6 +170,16 @@ class Repost(Base):
 
     user = relationship("User", back_populates="reposts")
     video = relationship("Video")
+
+class Achievement(Base):
+    __tablename__ = "achievements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    milestone_name = Column(String) # e.g., "100_VIEWS", "1000_VIEWS"
+    reached_at = Column(DateTime, default=func.now())
+    
+    user = relationship("User")
 
 class SponsoredAd(Base):
     __tablename__ = "sponsored_ads"

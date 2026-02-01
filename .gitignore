@@ -55,3 +55,8 @@ video-service/target/
 .DS_Store
 .vscode/
 .idea/
+.vs/
+
+# Static Assets
+backend/static/*
+!backend/static/defaults/

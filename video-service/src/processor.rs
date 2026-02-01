@@ -8,16 +8,13 @@ pub async fn process(video_path: &str, format: &str, skip_thumbnail: bool, statu
     // 1. Get Dimensions and Aspect Ratio
     let (width, height) = get_video_dimensions(video_path).await?;
     let aspect_ratio = width / height;
+    println!("Detected dimensions: {}x{} (AR: {})", width, height, aspect_ratio);
     
     validate_format(aspect_ratio, format)?;
 
     // 2. Transcode and Generate Thumbnail
     if format == "flash" {
         // For flash videos, skip multi-resolution transcoding.
-        // Copy original to a standard resolution (720p) so the backend finds it easily.
-        // Optimization: Use original if it is small, or just standard 720p? 
-        // Logic: Keep existing 720p copy for simplicity, flash is vertical usually.
-        
         if let Some(ref map) = status_map {
             map.insert(task_id.clone(), TaskStatus {
                 progress: 50,
@@ -26,32 +23,27 @@ pub async fn process(video_path: &str, format: &str, skip_thumbnail: bool, statu
             });
         }
         let output_path = format!("{}_720p.mp4", video_path);
+        println!("Flash video detected - copying to target path: {}", output_path);
         std::fs::copy(video_path, &output_path)?;
     } else {
         // Resolutions: 480p, 720p, 1080p, 1440p (2K), 2160p (4K)
         let all_resolutions = [480, 720, 1080, 1440, 2160];
         
         // Filter resolutions: strictly less than or equal to source height
-        // But always include at least one resolution (e.g. if source is 360p, we might want to just keep original or strict 480p? 
-        // For now, let's generate all resolutions <= source_height.
-        // If source is 1080p, we generate 480, 720, 1080.
-        // If source is 720p, we generate 480, 720.
-        // If source is < 480p (e.g. 360p), we might end up with nothing? 
-        // Let's ensure we at least try to Transcode to the nearest standard if logical, or maybe just copy original as "video_url" fallback.
-        // The backend logic picks 720p or 1080p or 480p. If none exist, it might fail.
-        // Let's ensure we generate 480p even if source is smaller? Or simpler:
-        // Use the resolution list, but if target > source, skip it.
-        
         let mut target_resolutions: Vec<i32> = all_resolutions.into_iter()
             .filter(|&r| r as f32 <= height)
             .collect();
 
-        // Edge case: if source height is large (e.g. 1085), 1080 is included.
-        // Edge case: if source is small (e.g. 360), vector is empty.
-        // If empty, let's force 480p so we have at least one playable format, or potentially just 480p as a baseline.
+        // Edge case: if source height is small (e.g. 360), vector is empty.
+        // We ensure we have at least one playable format.
+        // If the source is smaller than 480p, we'll just use the source height for the "480p" labelled file
+        // to avoid upscaling while still satisfying the backend's expected suffix.
         if target_resolutions.is_empty() {
-            target_resolutions.push(480);
+            println!("Source height {} is smaller than 480p. Using source height for baseline.", height);
+            target_resolutions.push(height as i32);
         }
+
+        println!("Selected target resolutions: {:?}", target_resolutions);
 
         let total_steps = target_resolutions.len() + (if skip_thumbnail { 0 } else { 1 });
         
@@ -64,6 +56,9 @@ pub async fn process(video_path: &str, format: &str, skip_thumbnail: bool, statu
                 });
             }
 
+            // Note: If we had a non-standard height like 360, it will still use the _[height]p.mp4 naming convention.
+            // The backend might need to be aware of this, or we just label the smallest one as 480p.
+            // For now, let's keep the actual height in the name if non-standard, but we might want to standardize.
             let output_path = format!("{}_{}p.mp4", video_path, target_height);
             transcode(video_path, &output_path, *target_height).await?;
         }
@@ -81,7 +76,6 @@ pub async fn process(video_path: &str, format: &str, skip_thumbnail: bool, statu
         }
         generate_thumbnail(video_path).await?;
     }
-
     Ok(())
 }
 

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Users, Heart, DollarSign, Share2, Video, Zap, ArrowLeft, BarChart3 } from 'lucide-react';
+import {
+    TrendingUp, Users, Heart, DollarSign, Share2, Video,
+    Zap, ArrowLeft, BarChart3, Trophy, CheckCircle2,
+    ChevronRight, Sparkles, X, Layout
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserInsights } from '../api';
 
@@ -8,6 +12,7 @@ const Insights = () => {
     const { token } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showMilestonePopup, setShowMilestonePopup] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -15,6 +20,9 @@ const Insights = () => {
             try {
                 const data = await getUserInsights(token);
                 setStats(data);
+                if (data.new_milestone_reached) {
+                    setShowMilestonePopup(true);
+                }
             } catch (err) {
                 console.error("Error fetching insights:", err);
             } finally {
@@ -35,8 +43,13 @@ const Insights = () => {
         { label: 'Following', value: stats?.following || 0, icon: Users, color: '#64748b', glow: 'rgba(100, 116, 139, 0.4)' },
     ];
 
+    const totalViews = stats?.total_views || 0;
+    const nextMilestone = stats?.next_milestone || 100;
+    const progressPercent = Math.min(100, (totalViews / nextMilestone) * 100);
+    const remainingViews = Math.max(0, nextMilestone - totalViews);
+
     return (
-        <div className="insights-page page-container" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="insights-page page-container" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
             <div className="insights-header" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '3rem' }}>
                 <button
                     onClick={() => navigate(-1)}
@@ -48,10 +61,30 @@ const Insights = () => {
                 >
                     <ArrowLeft size={20} />
                 </button>
-                <div>
-                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Account Insights</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Track your performance and growth across Montage</p>
+                <div style={{ flex: 1 }}>
+                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Creator Insights</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>Track your growth and celebrate your milestones on Montage</p>
                 </div>
+
+                <button
+                    onClick={() => navigate('/manage')}
+                    className="glass hover-scale"
+                    style={{
+                        padding: '1rem 2rem',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                    }}
+                >
+                    <Layout size={18} color="var(--accent-primary)" />
+                    Manage Content
+                    <ChevronRight size={18} opacity={0.5} />
+                </button>
             </div>
 
             <div className="stats-grid" style={{
@@ -96,7 +129,7 @@ const Insights = () => {
                             <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{
                                     height: '100%',
-                                    width: `${((stats?.home_videos || 0) / ((stats?.home_videos || 0) + (stats?.flash_videos || 1)) * 100)}%`,
+                                    width: `${((stats?.home_videos || 0) / Math.max(1, (stats?.home_videos || 0) + (stats?.flash_videos || 0)) * 100)}%`,
                                     background: 'var(--accent-primary)',
                                     boxShadow: '0 0 10px var(--accent-glow)'
                                 }}></div>
@@ -110,7 +143,7 @@ const Insights = () => {
                             <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{
                                     height: '100%',
-                                    width: `${((stats?.flash_videos || 0) / ((stats?.home_videos || 0) + (stats?.flash_videos || 1)) * 100)}%`,
+                                    width: `${((stats?.flash_videos || 0) / Math.max(1, (stats?.home_videos || 0) + (stats?.flash_videos || 0)) * 100)}%`,
                                     background: '#f59e0b',
                                     boxShadow: '0 0 10px rgba(245, 158, 11, 0.4)'
                                 }}></div>
@@ -119,12 +152,137 @@ const Insights = () => {
                     </div>
                 </div>
 
-                <div className="glass" style={{ padding: '2rem', borderRadius: '24px', background: 'linear-gradient(135deg, rgba(255, 62, 62, 0.05) 0%, rgba(0, 0, 0, 0) 100%)' }}>
-                    <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Next Milestone</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>You're 240 views away from reaching 1,000 total views! Keep uploading quality content.</p>
-                    <button className="hero-btn" onClick={() => navigate('/upload')}>Create New Content</button>
+                <div className="glass" style={{
+                    padding: '2rem',
+                    borderRadius: '24px',
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(0, 0, 0, 0) 100%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.5rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <Trophy size={24} color="#f59e0b" />
+                        <h2 style={{ fontSize: '1.5rem' }}>Road to Milestone</h2>
+                    </div>
+
+                    <div>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                            You're {remainingViews.toLocaleString()} views away from hitting <strong>{nextMilestone.toLocaleString()} views</strong>!
+                        </p>
+
+                        <div style={{ marginBottom: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Progress</span>
+                                <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>{Math.round(progressPercent)}%</span>
+                            </div>
+                            <div style={{ height: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: `${progressPercent}%`,
+                                    background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                                    boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                                    transition: 'width 1s cubic-bezier(0.22, 1, 0.36, 1)'
+                                }}></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        className="hero-btn"
+                        onClick={() => navigate('/upload')}
+                        style={{ marginTop: 'auto', width: '100%' }}
+                    >
+                        Boost Growth (Upload)
+                    </button>
                 </div>
             </div>
+
+            {/* Achievement Badges Section */}
+            {stats?.achievements?.length > 0 && (
+                <div style={{ marginTop: '3rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                        <Sparkles size={20} color="#f59e0b" /> Achievements
+                    </h2>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                        {stats.achievements.map((ach, idx) => (
+                            <div key={idx} className="glass" style={{
+                                padding: '0.8rem 1.2rem',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.8rem',
+                                fontSize: '0.9rem',
+                                border: '1px solid rgba(245, 158, 11, 0.2)',
+                                background: 'rgba(245, 158, 11, 0.05)'
+                            }}>
+                                <CheckCircle2 size={16} color="#f59e0b" />
+                                {ach.replace('_', ' ')}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Milestone Celebration Popup */}
+            {showMilestonePopup && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.8)',
+                    zIndex: 1000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backdropFilter: 'blur(10px)'
+                }}>
+                    <div className="glass hover-scale" style={{
+                        width: '450px',
+                        padding: '4rem 3rem',
+                        borderRadius: '32px',
+                        textAlign: 'center',
+                        position: 'relative',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        boxShadow: '0 0 50px rgba(245, 158, 11, 0.2)'
+                    }}>
+                        <button
+                            onClick={() => setShowMilestonePopup(false)}
+                            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.5 }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{
+                            width: '100px',
+                            height: '100px',
+                            borderRadius: '50%',
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 2rem',
+                            color: '#f59e0b',
+                            boxShadow: '0 0 30px rgba(245, 158, 11, 0.4)'
+                        }}>
+                            <Trophy size={50} />
+                        </div>
+
+                        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1rem' }}>CONGRATULATIONS!</h2>
+                        <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            You've officially reached the <strong>{stats.new_milestone_reached.replace('_', ' ')}</strong> milestone!
+                            Your content is making a huge impact on Montage.
+                        </p>
+
+                        <button
+                            className="hero-btn"
+                            style={{ marginTop: '2.5rem', width: '100%', padding: '1.2rem' }}
+                            onClick={() => setShowMilestonePopup(false)}
+                        >
+                            Keep Shone!
+                        </button>
+                    </div>
+                    {/* Confetti Animation Placeholder Logic would normally be here */}
+                </div>
+            )}
         </div>
     );
 };

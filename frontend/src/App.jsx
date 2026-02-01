@@ -17,6 +17,7 @@ import Search from './pages/Search';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import ManageVideos from './pages/ManageVideos';
+import ManageContent from './pages/ManageContent';
 import Insights from './pages/Insights';
 
 import Header from './components/Header';
@@ -61,7 +62,8 @@ function AppContent() {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/posts" element={<Posts />} />
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-            <Route path="/manage-videos" element={<ProtectedRoute><ManageVideos /></ProtectedRoute>} />
+            <Route path="/manage" element={<ProtectedRoute><ManageContent /></ProtectedRoute>} />
+            <Route path="/manage-videos" element={<ProtectedRoute><ManageContent /></ProtectedRoute>} />
             <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
             {/* Admin and Moderator routes removed */}
 

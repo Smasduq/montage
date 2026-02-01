@@ -88,8 +88,8 @@ def get_user_profile(db: Session, username: str, current_user_id: int = None):
     if current_user_id:
         is_following = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first() is not None
 
-    # Videos
-    all_videos = db.query(Video).filter(Video.owner_id == user_id, Video.status == "approved").all()
+    # Videos - Fetch all statuses (Pending, Approved, Failed) for user's own view
+    all_videos = db.query(Video).filter(Video.owner_id == user_id).all()
     videos = [v for v in all_videos if v.video_type == "home"]
     flash_videos = [v for v in all_videos if v.video_type == "flash"]
     
@@ -110,6 +110,8 @@ def get_user_profile(db: Session, username: str, current_user_id: int = None):
         "bio": db_user.bio,
         "role": db_user.role,
         "google_id": db_user.google_id,
+        "flash_quota_limit": db_user.flash_quota_limit,
+        "home_quota_limit": db_user.home_quota_limit,
         
         "followers_count": followers_count,
         "following_count": following_count,

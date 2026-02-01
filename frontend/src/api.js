@@ -156,6 +156,16 @@ export const deleteVideo = async (videoId, token) => {
     return response.json();
 };
 
+export const deletePost = async (postId, token) => {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    return response.json();
+};
+
 export const getUserInsights = async (token) => {
     const response = await fetch(`${API_BASE_URL}/users/me/insights`, {
         headers: {

@@ -6,6 +6,14 @@ from datetime import datetime
 
 def get_videos(db: Session, video_type: str = None, status: str = "approved", current_user_id: int = None):
     query = db.query(Video)
+    from datetime import timedelta
+    twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+    
+    # Filter out failed videos older than 24 hours
+    query = query.filter(
+        ~((Video.status == "failed") & (Video.failed_at < twenty_four_hours_ago))
+    )
+    
     if video_type:
         query = query.filter(Video.video_type == video_type)
     if status:

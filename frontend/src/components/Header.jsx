@@ -245,7 +245,9 @@ const Header = ({ onMenuToggle, isMenuOpen }) => {
                         {user?.profile_pic ? (
                             <img src={user.profile_pic} alt="profile" className="avatar-img-sm" />
                         ) : (
-                            <div className="avatar-placeholder-sm" style={{ background: 'var(--accent-primary)', width: '100%', height: '100%', borderRadius: '50%' }} />
+                            <div className="avatar-placeholder-sm">
+                                {user?.username?.[0].toUpperCase()}
+                            </div>
                         )}
                     </div>
                 )}

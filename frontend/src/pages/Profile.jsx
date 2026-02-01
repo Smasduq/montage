@@ -97,7 +97,7 @@ const Profile = () => {
                             overflow: 'hidden'
                         }}>
                             {profile.profile_pic ? (
-                                <img src={profile.profile_pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img src={profile.profile_pic} alt="" className="avatar-img" />
                             ) : (
                                 <div className="avatar-placeholder" style={{ width: '100%', height: '100%', fontSize: '4rem' }}>
                                     {profile.username[0].toUpperCase()}
