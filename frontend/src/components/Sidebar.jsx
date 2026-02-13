@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home as HomeIcon, Zap, Layout, Upload as UploadIcon, LogIn, LogOut, Clapperboard } from 'lucide-react';
+import { Home as HomeIcon, Zap, Layout, Upload as UploadIcon, LogIn, LogOut, Clapperboard, Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -25,6 +25,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                     <NavLink to="/manage" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                         <Clapperboard size={20} />
                         <span>Manage Content</span>
+                    </NavLink>
+                )}
+                {token && (
+                    <NavLink to="/achievements" onClick={onClose} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                        <Trophy size={20} />
+                        <span>Achievements</span>
                     </NavLink>
                 )}
                 {token && (

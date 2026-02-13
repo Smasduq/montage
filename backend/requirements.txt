@@ -1,6 +1,5 @@
-fastapi
+fastapi[all]
 uvicorn
-sqlalchemy
 python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
@@ -11,3 +10,4 @@ requests
 google-auth
 httpx
 psycopg2-binary
+sqlalchemy

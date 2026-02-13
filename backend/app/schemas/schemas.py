@@ -168,6 +168,7 @@ class Comment(CommentBase):
     model_config = ConfigDict(from_attributes=True)
 
 class Achievement(BaseModel):
+    id: int
     milestone_name: str
     reached_at: datetime
     

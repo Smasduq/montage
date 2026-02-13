@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getStats, getUsers, promoteUser } from './api';
 import { Users, Video, ShieldCheck, LogOut, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from './context/NotificationContext';
 
 const Dashboard = ({ token, setToken }) => {
     const [stats, setStats] = useState({ users: 0, videos: 0, premium_users: 0, total_views: 0 });
@@ -37,6 +38,8 @@ const Dashboard = ({ token, setToken }) => {
         navigate('/');
     };
 
+    const { showNotification } = useNotification();
+
     const handlePromote = async (userId, currentStatus) => {
         try {
             await promoteUser(userId, !currentStatus, token);
@@ -45,9 +48,10 @@ const Dashboard = ({ token, setToken }) => {
                 ...prev,
                 premium_users: !currentStatus ? prev.premium_users + 1 : prev.premium_users - 1
             }));
+            showNotification('success', `User ${!currentStatus ? 'promoted to Premium' : 'demoted to Free'} successfully`);
         } catch (err) {
             console.error("Failed to update user", err);
-            alert("Failed to update user status");
+            showNotification('error', "Failed to update user status");
         }
     };
 
@@ -69,13 +73,22 @@ const Dashboard = ({ token, setToken }) => {
                     <ShieldCheck size={32} color="#ef4444" />
                     <span style={{ fontSize: '1.2rem', fontWeight: 700 }}>Montage Admin</span>
                 </div>
-                <button onClick={handleLogout} style={{
-                    background: 'none', border: '1px solid #333', color: '#aaa',
-                    padding: '0.5rem 1rem', borderRadius: '0.5rem', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '0.5rem'
-                }}>
-                    <LogOut size={16} /> Logout
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button onClick={() => navigate('/approvals')} style={{
+                        background: '#333', border: 'none', color: '#e5e5e5',
+                        padding: '0.5rem 1rem', borderRadius: '0.5rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600
+                    }}>
+                        <Video size={16} /> Approvals
+                    </button>
+                    <button onClick={handleLogout} style={{
+                        background: 'none', border: '1px solid #333', color: '#aaa',
+                        padding: '0.5rem 1rem', borderRadius: '0.5rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem'
+                    }}>
+                        <LogOut size={16} /> Logout
+                    </button>
+                </div>
             </header>
 
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>

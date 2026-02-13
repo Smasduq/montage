@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, text
 from app.models.models import Video, Like, Comment, View, User, Post, SponsoredAd
 from app.schemas import schemas
 from datetime import datetime
 
-def get_videos(db: Session, video_type: str = None, status: str = "approved", current_user_id: int = None):
+def get_videos(db: Session, video_type: str = None, filter_status: str = "approved", current_user_id: int = None):
     query = db.query(Video)
     from datetime import timedelta
     twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
@@ -16,8 +16,8 @@ def get_videos(db: Session, video_type: str = None, status: str = "approved", cu
     
     if video_type:
         query = query.filter(Video.video_type == video_type)
-    if status:
-        query = query.filter(Video.status == status)
+    if filter_status:
+        query = query.filter(Video.status == filter_status)
     
     videos = query.all()
     

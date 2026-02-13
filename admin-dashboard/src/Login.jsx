@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { login, getMe } from './api';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
+import { useNotification } from './context/NotificationContext';
 
 const Login = ({ setToken }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+
+    const { showNotification } = useNotification();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -18,15 +21,18 @@ const Login = ({ setToken }) => {
 
             if (user.role !== 'admin') {
                 setError('Access Denied: Admins only.');
+                showNotification('error', 'Access Denied: Admins only.');
                 return;
             }
 
             setToken(data.access_token);
             localStorage.setItem('adminToken', data.access_token);
+            showNotification('success', 'Logged in successfully');
             navigate('/dashboard');
         } catch (err) {
             console.error(err);
             setError('Invalid credentials or server error');
+            showNotification('error', 'Invalid credentials or server error');
         }
     };
 

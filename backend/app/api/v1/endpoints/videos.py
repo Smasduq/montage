@@ -18,9 +18,14 @@ from app.models.models import Video, User
 router = APIRouter()
 
 @router.get("/", response_model=List[schemas.Video])
-def read_videos(video_type: str = None, db: Session = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
+def read_videos(
+    video_type: str = None, 
+    status: str = "approved", 
+    db: Session = Depends(get_db), 
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
     user_id = current_user.id if current_user else None
-    return crud_video.get_videos(db, video_type=video_type, current_user_id=user_id)
+    return crud_video.get_videos(db, video_type=video_type, filter_status=status, current_user_id=user_id)
 
 @router.get("/search", response_model=List[schemas.Video])
 async def search_videos(
@@ -167,7 +172,7 @@ async def background_process_video(
                 db.commit()
             return
 
-        # Phase 2: Post-processing (Moving files and updating DB to approved)
+        # Phase 2: Post-processing (Moving files and updating DB)
         try:
             # Ensure base filename is safe and unique
             clean_title = "".join([c if c.isalnum() else "_" for c in title])
@@ -229,7 +234,7 @@ async def background_process_video(
                 video.url_2k = url_2k
                 video.url_4k = url_4k
                 video.duration = duration
-                video.status = "approved"
+                # video.status = "approved" # REMOVED AUTO-APPROVAL
                 video.failed_at = None # Clear if it was a retry
                 
                 if thumbnail_url:
@@ -248,6 +253,7 @@ async def background_process_video(
                 shutil.rmtree(temp_dir)
             except Exception as e:
                 print(f"Error cleaning up temp dir {temp_dir}: {e}")
+
 def delete_video_files(video: Video):
     """Utility to delete all local files associated with a video."""
     urls = [
@@ -297,6 +303,27 @@ def delete_video(
     db.commit()
     
     return {"status": "success", "message": "Video deleted successfully"}
+
+@router.put("/{video_id}/status")
+def update_video_status(
+    video_id: int,
+    status: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to update video status")
+        
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+        
+    if status not in ["approved", "rejected", "pending"]:
+         raise HTTPException(status_code=400, detail="Invalid status")
+         
+    video.status = status
+    db.commit()
+    return {"status": "success", "video_status": video.status}
 
 
 @router.post("/upload", response_model=schemas.Video)

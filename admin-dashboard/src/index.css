@@ -6,6 +6,15 @@
   color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #0f0f0f;
+
+  /* Notification Variables */
+  --bg-glass: rgba(20, 20, 20, 0.7);
+  --accent-primary: #ff3e3e;
+  --accent-glow: rgba(255, 62, 62, 0.4);
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-muted: #666666;
+  --border-glass: rgba(255, 255, 255, 0.08);
 }
 
 body {
@@ -20,4 +29,11 @@ body {
 
 button {
   font-family: inherit;
+}
+
+.glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
 }
