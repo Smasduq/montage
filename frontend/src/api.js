@@ -166,12 +166,13 @@ export const deletePost = async (postId, token) => {
     return response.json();
 };
 
-const response = await fetch(`${API_BASE_URL}/users/me/insights`, {
-    headers: {
-        'Authorization': `Bearer ${token}`
-    }
-});
-return response.json();
+export const getUserInsights = async (token) => {
+    const response = await fetch(`${API_BASE_URL}/users/me/insights`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    return response.json();
 };
 
 export const getAchievements = async (token) => {
