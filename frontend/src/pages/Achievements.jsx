@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Trophy, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import api from '../api';
+import { getAchievements } from '../api';
 
 const Achievements = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const [achievements, setAchievements] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchAchievements = async () => {
             try {
-                const response = await api.get('/achievements/');
-                setAchievements(response.data);
+                const data = await getAchievements(token);
+                setAchievements(data);
             } catch (error) {
                 console.error("Failed to fetch achievements:", error);
             } finally {
@@ -67,7 +67,7 @@ const Achievements = () => {
                     ))}
                 </div>
             )}
-            
+
             <style jsx>{`
                 .achievement-card {
                     display: flex;
