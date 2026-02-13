@@ -188,3 +188,15 @@ class SponsoredAd(Base):
     title = Column(String)
     image_url = Column(String)
     is_active = Column(Boolean, default=True)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    message = Column(String)
+    type = Column(String, default="info")
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
+    user = relationship("User")

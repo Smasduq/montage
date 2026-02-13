@@ -20,6 +20,7 @@ import ManageVideos from './pages/ManageVideos';
 import ManageContent from './pages/ManageContent';
 import Achievements from './pages/Achievements';
 import Insights from './pages/Insights';
+import NotificationManager from './components/NotificationManager';
 
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -92,6 +93,7 @@ function App() {
       <Router>
         <AuthProvider>
           <NotificationProvider>
+            <NotificationManager />
             <AppContent />
           </NotificationProvider>
         </AuthProvider>
