@@ -96,7 +96,7 @@ const Achievements = () => {
             </div>
 
             <div className="achievements-section" style={{ marginTop: '3rem' }}>
-                <h3 className="section-title">Waitlist (Locked)</h3>
+                <h3 className="section-title">Locked Milestones</h3>
                 <div className="grid-layout">
                     {lockedList.map((badge) => (
                         <div key={badge.id} className="card glass achievement-card locked">
