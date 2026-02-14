@@ -4,11 +4,12 @@ from typing import List, Optional
 from uuid import uuid4
 
 from app.db.session import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_current_user_optional
 from app.schemas import schemas
 from app.core import config
-from app.models.models import Post
-from app.crud import video as crud_video # Post is in crud_video for now
+from app.models.models import Post, Follow, Like, Comment
+from app.crud import video as crud_video
+from sqlalchemy import case, func
 
 router = APIRouter()
 
@@ -16,18 +17,65 @@ router = APIRouter()
 def get_posts(
     skip: int = 0, 
     limit: int = 20, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    # Fetch posts with owner details
-    # SQLAlchemy's relationship loading will handle owner details if lazy='joined' or distinct query
-    # Default is lazy loading, but Pydantic might trigger N+1 if not careful.
-    # For now simple query is fine.
-    posts = db.query(Post).order_by(Post.id.desc()).offset(skip).limit(limit).all()
+    query = db.query(Post)
+    
+    if current_user:
+        # Get IDs of people user follows
+        following_ids = db.query(Follow.followed_id).filter(Follow.follower_id == current_user.id).all()
+        following_ids = [f[0] for f in following_ids]
+        
+        if following_ids:
+            is_followed = case(
+                (Post.owner_id.in_(following_ids), 1),
+                else_=0
+            ).label('is_followed')
+            query = query.order_by(is_followed.desc(), Post.id.desc())
+        else:
+            query = query.order_by(Post.id.desc())
+    else:
+        query = query.order_by(Post.id.desc())
+        
+    posts = query.offset(skip).limit(limit).all()
+
+    # Advanced Viral Expansion & Discovery
+    if len(posts) < limit:
+        remaining = limit - len(posts)
+        seen_ids = [p.id for p in posts]
+        
+        # Pull high engagement posts as fallback
+        exp_query = db.query(Post).filter(Post.id.notin_(seen_ids), Post.views_count > 5)
+        remaining_posts = exp_query.order_by(Post.views_count.desc()).limit(remaining).all()
+        posts.extend(remaining_posts)
+
+    # Populate metadata & handle engagement attribution
+    for post in posts:
+        # Determine the target for engagement attribution
+        target = post
+        if post.original_post_id and post.original_post:
+            target = post.original_post
+            
+        # Metadata counts always reflect the ORIGINAL post
+        target.likes_count = db.query(func.count(Like.id)).filter(Like.post_id == target.id).scalar() or 0
+        target.comments_count = db.query(func.count(Comment.id)).filter(Comment.post_id == target.id).scalar() or 0
+        
+        if current_user:
+            target.liked_by_user = db.query(Like).filter(Like.post_id == target.id, Like.user_id == current_user.id).first() is not None
+        else:
+            target.liked_by_user = False
+        
+        # Increment View on Original
+        crud_video.increment_view(db, user_id=current_user.id if current_user else None, post_id=target.id)
+        
+    db.commit()
     return posts
 
 @router.post("/create", response_model=schemas.Post)
 async def create_post(
     content: str = Form(...),
+    tags: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -50,8 +98,65 @@ async def create_post(
             
         image_url = f"{config.BASE_URL}/static/posts/{local_filename}"
     
-    post_in = schemas.PostCreate(content=content, image_url=image_url)
+    post_in = schemas.PostCreate(content=content, image_url=image_url, tags=tags)
     return crud_video.create_post(db, post=post_in, user_id=current_user.id)
+
+@router.post("/{post_id}/repost", response_model=schemas.Post)
+def repost_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    original_post = db.query(Post).filter(Post.id == post_id).first()
+    if not original_post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if already reposted by this user to avoid spam
+    existing = db.query(Post).filter(Post.original_post_id == post_id, Post.owner_id == current_user.id).first()
+    if existing:
+        return existing
+
+    new_repost = Post(
+        owner_id=current_user.id,
+        original_post_id=original_post.id,
+        is_active=True
+    )
+    db.add(new_repost)
+    db.commit()
+    db.refresh(new_repost)
+    return new_repost
+
+@router.post("/{post_id}/like")
+def like_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    is_liked = crud_video.toggle_like(db, user_id=current_user.id, post_id=post_id)
+    likes_count = db.query(func.count(Like.id)).filter(Like.post_id == post_id).scalar() or 0
+    
+    return {"status": "success", "liked": is_liked, "likes_count": likes_count}
+
+@router.post("/{post_id}/comment", response_model=schemas.Comment)
+def comment_post(
+    post_id: int,
+    comment: schemas.CommentBase,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    return crud_video.create_comment(db, comment=comment, user_id=current_user.id, post_id=post_id)
+
+@router.get("/{post_id}/comments", response_model=List[schemas.Comment])
+def read_post_comments(post_id: int, db: Session = Depends(get_db)):
+    return crud_video.get_comments(db, post_id=post_id)
 
 @router.delete("/{post_id}")
 def delete_post(

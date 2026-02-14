@@ -89,7 +89,9 @@ class TokenData(BaseModel):
 
 class VideoBase(BaseModel):
     title: str
+    description: Optional[str] = None
     video_type: str
+    tags: Optional[str] = None
 
 class VideoCreate(VideoBase):
     video_url: str
@@ -101,6 +103,7 @@ class VideoCreate(VideoBase):
     thumbnail_url: str
     duration: Optional[int] = 0
     processing_key: Optional[str] = None
+    description: Optional[str] = None
 
 class Video(VideoBase):
     id: int
@@ -120,6 +123,7 @@ class Video(VideoBase):
     likes_count: int = 0
     comments_count: int = 0
     liked_by_user: bool = False
+    owner_followed: bool = False
     duration: int = 0
     processing_key: Optional[str] = None
     failed_at: Optional[datetime] = None
@@ -130,15 +134,23 @@ class Video(VideoBase):
 class PostBase(BaseModel):
     content: str
     image_url: Optional[str] = None
+    tags: Optional[str] = None
 
 class PostCreate(PostBase):
-    pass
+    original_post_id: Optional[int] = None
 
 class Post(PostBase):
     id: int
     owner_id: int
     owner: Optional[UserBase] = None
     created_at: Optional[datetime] = None
+    likes_count: int = 0
+    comments_count: int = 0
+    liked_by_user: bool = False
+    original_post_id: Optional[int] = None
+    original_post: Optional["Post"] = None
+    views_count: int = 0
+    reposted_by: Optional[UserBase] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -126,6 +126,11 @@ def get_user_profile(db: Session, username: str, current_user_id: int = None):
     }
     return profile_data
 
+from app.crud import achievement as crud_achievement
+from app.crud import notification as crud_notification
+from app.utils.push import notify_user_push
+from app.schemas.notification import NotificationCreate
+
 def toggle_follow(db: Session, follower_id: int, followed_id: int):
     if follower_id == followed_id:
         return False
@@ -140,6 +145,25 @@ def toggle_follow(db: Session, follower_id: int, followed_id: int):
         new_follow = Follow(follower_id=follower_id, followed_id=followed_id)
         db.add(new_follow)
         db.commit()
+        
+        # Check for achievements
+        follower_count = db.query(func.count(Follow.follower_id)).filter(Follow.followed_id == followed_id).scalar()
+        
+        if follower_count == 1:
+            crud_achievement.create_achievement(db, user_id=followed_id, milestone_name="FIRST_FOLLOWER")
+        elif follower_count == 100:
+            crud_achievement.create_achievement(db, user_id=followed_id, milestone_name="100_FOLLOWERS")
+        elif follower_count == 1000:
+            crud_achievement.create_achievement(db, user_id=followed_id, milestone_name="1K_FOLLOWERS")
+            
+        # Notify user
+        try:
+            follower = get_user_by_id(db, follower_id)
+            msg = f"{follower.username} started following you!"
+            notify_user_push(db, followed_id, "New Follower!", msg, link=f"/profile/{follower.username}")
+        except Exception:
+            pass
+
         return True
 
 def create_verification_code(db: Session, email: str):

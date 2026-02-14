@@ -4,6 +4,7 @@ from typing import Optional
 
 class NotificationBase(BaseModel):
     message: str
+    link: Optional[str] = None
     type: Optional[str] = "info"
 
 class NotificationCreate(NotificationBase):

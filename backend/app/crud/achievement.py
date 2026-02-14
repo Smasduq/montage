@@ -35,7 +35,8 @@ def create_achievement(db: Session, user_id: int, milestone_name: str):
         notification_schemas.NotificationCreate(
             user_id=user_id,
             message=f"You earned a new badge: {display_name}!",
-            type="achievement"
+            type="achievement",
+            link="/achievements"
         )
     )
     

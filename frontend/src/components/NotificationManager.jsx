@@ -1,11 +1,23 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { getUnreadNotifications, markNotificationRead } from '../api';
+import AchievementPopup from './AchievementPopup';
 
 const NotificationManager = () => {
     const { token, user } = useAuth();
-    const { showNotification } = useNotification();
+    const { showNotification, activeAchievement, showAchievementCelebration } = useNotification();
+
+    const handleClosePopup = async () => {
+        if (activeAchievement) {
+            try {
+                await markNotificationRead(token, activeAchievement.id);
+            } catch (err) {
+                console.error("Failed to mark achievement read:", err);
+            }
+            showAchievementCelebration(null);
+        }
+    };
 
     useEffect(() => {
         if (!user || !token) return;
@@ -15,14 +27,22 @@ const NotificationManager = () => {
                 const notifications = await getUnreadNotifications(token);
                 if (notifications && notifications.length > 0) {
                     for (const note of notifications) {
-                        // Show toast
-                        showNotification(note.type || 'info', note.message);
+                        // If it's an achievement and we aren't already showing one
+                        if (note.type === 'achievement') {
+                            if (!activeAchievement) {
+                                showAchievementCelebration(note);
+                                // Don't mark as read yet, wait for user to see it
+                            }
+                        } else {
+                            // Standard notification - show toast
+                            showNotification(note.type || 'info', note.message, { link: note.link });
 
-                        // Mark as read immediately after showing
-                        try {
-                            await markNotificationRead(token, note.id);
-                        } catch (err) {
-                            console.error("Failed to mark notification read:", err);
+                            // Mark as read immediately after showing toast
+                            try {
+                                await markNotificationRead(token, note.id);
+                            } catch (err) {
+                                console.error("Failed to mark notification read:", err);
+                            }
                         }
                     }
                 }
@@ -31,16 +51,25 @@ const NotificationManager = () => {
             }
         };
 
-        // Poll every 30 seconds
-        const intervalId = setInterval(pollNotifications, 30000);
+        // Poll every 3 seconds for achievement celebrations
+        const intervalId = setInterval(pollNotifications, 3000);
 
         // Initial check
         pollNotifications();
 
         return () => clearInterval(intervalId);
-    }, [user, token, showNotification]);
+    }, [user, token, showNotification, activeAchievement]);
 
-    return null; // Invisible component
+    return (
+        <>
+            {activeAchievement && (
+                <AchievementPopup
+                    achievement={activeAchievement}
+                    onClose={handleClosePopup}
+                />
+            )}
+        </>
+    );
 };
 
 export default NotificationManager;

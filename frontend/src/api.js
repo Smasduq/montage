@@ -183,3 +183,34 @@ export const getAchievements = async (token) => {
     const response = await fetch(`${API_BASE_URL}/achievements/`, { headers });
     return response.json();
 };
+
+export const getUnreadNotifications = async (token) => {
+    const response = await fetch(`${API_BASE_URL}/notifications/unread`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch notifications');
+    return response.json();
+};
+
+export const markNotificationRead = async (token, notificationId) => {
+    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to mark notification read');
+    return response.json();
+};
+
+export const getAllNotifications = async (token) => {
+    const response = await fetch(`${API_BASE_URL}/notifications/`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch notifications');
+    return response.json();
+};

@@ -80,6 +80,7 @@ class Video(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
+    description = Column(Text, nullable=True)
     video_url = Column(String) # This will now be the fallback (likely 720p or original)
     url_480p = Column(String, nullable=True)
     url_720p = Column(String, nullable=True)
@@ -95,12 +96,13 @@ class Video(Base):
     shares = Column(Integer, default=0)
     duration = Column(Integer, default=0)
     processing_key = Column(String, nullable=True)
+    tags = Column(Text, nullable=True) # Comma-separated tags
     failed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     owner = relationship("User", back_populates="videos")
-    comments = relationship("Comment", back_populates="video")
-    likes = relationship("Like", back_populates="video")
+    comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
+    likes = relationship("Like", back_populates="video", cascade="all, delete-orphan")
 
     @property
     def owner_username(self):
@@ -111,20 +113,26 @@ class View(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    video_id = Column(Integer, ForeignKey("videos.id"))
+    video_id = Column(Integer, ForeignKey("videos.id"), nullable=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     user = relationship("User")
     video = relationship("Video")
+    post = relationship("Post")
 
 class Like(Base):
     __tablename__ = "likes"
 
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    video_id = Column(Integer, ForeignKey("videos.id"), primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    video_id = Column(Integer, ForeignKey("videos.id"), nullable=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    created_at = Column(DateTime, default=func.now())
 
     user = relationship("User", back_populates="likes")
     video = relationship("Video", back_populates="likes")
+    post = relationship("Post", back_populates="likes")
 
 class Post(Base):
     __tablename__ = "posts"
@@ -133,22 +141,31 @@ class Post(Base):
     content = Column(Text)
     image_url = Column(String, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
+    original_post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    views_count = Column(Integer, default=0)
+    tags = Column(Text, nullable=True) # Comma-separated tags
 
     owner = relationship("User", back_populates="posts")
+    original_post = relationship("Post", remote_side=[id])
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
+    
+    likes = relationship("Like", back_populates="post", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
 
 class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text)
-    video_id = Column(Integer, ForeignKey("videos.id"))
+    video_id = Column(Integer, ForeignKey("videos.id"), nullable=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=func.now())
 
     owner = relationship("User", back_populates="comments")
     video = relationship("Video", back_populates="comments")
+    post = relationship("Post", back_populates="comments")
 
 class Follow(Base):
     __tablename__ = "follows"
@@ -195,8 +212,21 @@ class Notification(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     message = Column(String)
+    link = Column(String, nullable=True)
     type = Column(String, default="info")
     is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
+    user = relationship("User")
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    endpoint = Column(String, unique=True, index=True)
+    p256dh = Column(String)
+    auth = Column(String)
     created_at = Column(DateTime, default=func.now())
 
     user = relationship("User")

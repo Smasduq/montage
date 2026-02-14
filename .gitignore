@@ -34,6 +34,7 @@ backend/.env.tmp
 backend/reset_db.py
 backend/montage.db
 backend/verify_*.py
+backend/fix_*.py
 backend/debug_*.py
 backend/test_*.py
 backend/seed_*.py

@@ -4,6 +4,7 @@ import { getVideos, likeVideo } from '../api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import VideoPreviewCard from '../components/VideoPreviewCard';
 
 const Home = () => {
     const navigate = useNavigate();
@@ -16,7 +17,7 @@ const Home = () => {
 
     const featured = {
         title: "Origins of the Peak",
-        desc: "A breathtaking journey through the highest summits of the world, captured in stunning 8K detail.",
+        desc: "The Home for Editors and Creators.",
         image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80"
     };
 
@@ -146,34 +147,19 @@ const Home = () => {
                     )}
 
                     {videos.slice(0, 8).map(video => (
-                        <div key={video.id} className="video-item" onClick={() => handleVideoClick(video.id)} style={{ cursor: 'pointer' }}>
-                            <div className="video-card">
-                                <img
-                                    src={video.thumbnail_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=60"}
-                                    className="video-thumb"
-                                    alt={video.title}
-                                    onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/640x360?text=Error"; }}
+                        <div key={video.id} className="video-item" style={{ cursor: 'pointer' }}>
+                            <div style={{ position: 'relative' }}>
+                                <VideoPreviewCard
+                                    video={video}
+                                    onClick={() => handleVideoClick(video.id)}
                                 />
 
                                 <div
                                     className={`like-button-overlay ${video.liked_by_user ? 'liked' : ''}`}
                                     onClick={(e) => handleLike(e, video.id)}
+                                    style={{ zIndex: 15 }}
                                 >
                                     <Heart size={20} fill={video.liked_by_user ? "var(--accent-primary)" : "none"} />
-                                </div>
-
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: '10px',
-                                    right: '10px',
-                                    background: 'rgba(0,0,0,0.8)',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: '600',
-                                    zIndex: 5
-                                }}>
-                                    {formatDuration(video.duration)}
                                 </div>
                             </div>
                             <div className="video-details" style={{ marginTop: '0.8rem' }}>
@@ -279,13 +265,11 @@ const Home = () => {
                     </div>
                     <div className="video-grid">
                         {videos.slice(8).map(video => (
-                            <div key={video.id} className="video-item" onClick={() => handleVideoClick(video.id)} style={{ cursor: 'pointer' }}>
-                                <div className="video-card">
-                                    <img src={video.thumbnail_url} className="video-thumb" alt={video.title} />
-                                    <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem' }}>
-                                        {formatDuration(video.duration)}
-                                    </div>
-                                </div>
+                            <div key={video.id} className="video-item" style={{ cursor: 'pointer' }}>
+                                <VideoPreviewCard
+                                    video={video}
+                                    onClick={() => handleVideoClick(video.id)}
+                                />
                                 <div className="video-details" style={{ marginTop: '0.8rem' }}>
                                     <div style={{ fontWeight: 600 }}>{video.title}</div>
                                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -295,6 +279,7 @@ const Home = () => {
                             </div>
                         ))}
                     </div>
+
                 </div>
             )}
         </div>

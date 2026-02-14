@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Eye, Play, Zap, Grid, Heart, MessageSquare, Share2, Plus } from 'lucide-react';
+import { Users, Eye, Play, Zap, Grid, Heart, MessageSquare, Share2, Plus, Bell } from 'lucide-react';
 import { getUserProfile, toggleFollow } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -9,7 +9,7 @@ const Profile = () => {
     const { username } = useParams();
     const navigate = useNavigate();
     const { token, user: currentUser } = useAuth();
-    const { showNotification } = useNotification();
+    const { showNotification, requestPushPermission } = useNotification();
 
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -113,7 +113,30 @@ const Profile = () => {
                         <div style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>@{profile.username}</div>
 
                         {isOwnProfile ? (
-                            <button className="btn-active" onClick={() => navigate('/settings')} style={{ padding: '0.6rem 2rem', borderRadius: '50px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>Edit Profile</button>
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                <button className="btn-active" onClick={() => navigate('/settings')} style={{ padding: '0.6rem 2rem', borderRadius: '50px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>Edit Profile</button>
+                                {Notification.permission !== 'granted' && (
+                                    <button
+                                        className="btn-active glass"
+                                        onClick={requestPushPermission}
+                                        style={{
+                                            padding: '0.6rem 1.5rem',
+                                            borderRadius: '50px',
+                                            background: 'rgba(var(--accent-rgb), 0.1)',
+                                            border: '1px solid var(--accent-primary)',
+                                            color: 'white',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 600,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        <Bell size={16} />
+                                        Enable Notifications
+                                    </button>
+                                )}
+                            </div>
                         ) : (
                             <button
                                 className={`btn-active ${isFollowing ? 'glass' : ''}`}
@@ -198,17 +221,60 @@ const Profile = () => {
                     </div>
                 )}
                 {activeTab === 'flash' && (
-                    <div className="video-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+                    <div className="flash-grid" style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: '4px',
+                        padding: '2px'
+                    }}>
                         {profile.flash_videos.length > 0 ? profile.flash_videos.map(v => (
-                            <div key={v.id} className="video-item" onClick={() => navigate(`/flash`)}>
-                                <div className="video-card" style={{ aspectRatio: '9/16' }}>
-                                    <img src={v.thumbnail_url} alt="" className="video-thumb" />
+                            <div key={v.id} className="flash-item" onClick={() => navigate(`/flash`)} style={{ cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
+                                <div className="video-card flash-card" style={{
+                                    aspectRatio: '1/1.3',
+                                    borderRadius: '8px',
+                                    position: 'relative',
+                                    overflow: 'hidden'
+                                }}>
+                                    <img src={v.thumbnail_url} alt="" className="video-thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }} />
+
+                                    {/* View Count Overlay */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '8px',
+                                        left: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        color: 'white',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+                                        zIndex: 2
+                                    }}>
+                                        <Eye size={14} />
+                                        <span>{v.views || 0}</span>
+                                    </div>
+
+                                    {/* Gradient Overlay for visibility */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: '40%',
+                                        background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)',
+                                        zIndex: 1
+                                    }} />
                                 </div>
-                                <div style={{ marginTop: '0.8rem', fontWeight: 600 }}>{v.title}</div>
                             </div>
                         )) : (
                             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>No flash videos yet.</div>
                         )}
+                        <style>{`
+                            .flash-item:hover .video-thumb {
+                                transform: scale(1.05);
+                            }
+                        `}</style>
                     </div>
                 )}
                 {activeTab === 'posts' && (

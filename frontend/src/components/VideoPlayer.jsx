@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Check } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Check, FastForward, Rewind } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import ShortcutGuide from './ShortcutGuide';
 
 const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
     const videoRef = useRef(null);
@@ -18,6 +19,29 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
     const [showControls, setShowControls] = useState(true);
+    const [showGuide, setShowGuide] = useState(false);
+    const [osd, setOsd] = useState({ visible: false, icon: null, text: '', key: 0 });
+    const osdTimeout = useRef(null);
+
+    const showOSD = (icon, text) => {
+        if (osdTimeout.current) clearTimeout(osdTimeout.current);
+        setOsd({ visible: true, icon, text, key: Date.now() });
+        osdTimeout.current = setTimeout(() => {
+            setOsd(prev => ({ ...prev, visible: false }));
+        }, 1000);
+    };
+
+    useEffect(() => {
+        const hasSeenGuide = localStorage.getItem('montage_shortcuts_seen');
+        if (!hasSeenGuide) {
+            setShowGuide(true);
+        }
+    }, []);
+
+    const handleDismissGuide = () => {
+        setShowGuide(false);
+        localStorage.setItem('montage_shortcuts_seen', 'true');
+    };
 
     // Resolution State
     const [currentResolution, setCurrentResolution] = useState(null); // '720p', '1080p', etc.
@@ -137,13 +161,84 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
-            containerRef.current.requestFullscreen();
+            containerRef.current.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
             setIsFullscreen(true);
         } else {
             document.exitFullscreen();
             setIsFullscreen(false);
         }
     };
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Don't trigger shortcuts if user is typing in an input or textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch (e.key.toLowerCase()) {
+                case ' ':
+                case 'k':
+                    e.preventDefault();
+                    togglePlay();
+                    showOSD(videoRef.current.paused ? <Pause size={40} /> : <Play size={40} fill="white" />, videoRef.current.paused ? 'Paused' : 'Playing');
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    const nextMute = !videoRef.current.muted;
+                    toggleMute();
+                    showOSD(nextMute ? <VolumeX size={40} /> : <Volume2 size={40} />, nextMute ? 'Muted' : 'Unmuted');
+                    break;
+                case 'arrowright':
+                    e.preventDefault();
+                    videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 5);
+                    showOSD(<FastForward size={40} />, '+5s');
+                    break;
+                case 'arrowleft':
+                    e.preventDefault();
+                    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+                    showOSD(<Rewind size={40} />, '-5s');
+                    break;
+                case 'l':
+                    e.preventDefault();
+                    videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 10);
+                    showOSD(<FastForward size={40} />, '+10s');
+                    break;
+                case 'j':
+                    e.preventDefault();
+                    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+                    showOSD(<Rewind size={40} />, '-10s');
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    const newVolUp = Math.min(1, videoRef.current.volume + 0.1);
+                    videoRef.current.volume = newVolUp;
+                    setVolume(newVolUp);
+                    setIsMuted(newVolUp === 0);
+                    showOSD(<Volume2 size={40} />, `${Math.round(newVolUp * 100)}%`);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    const newVolDown = Math.max(0, videoRef.current.volume - 0.1);
+                    videoRef.current.volume = newVolDown;
+                    setVolume(newVolDown);
+                    setIsMuted(newVolDown === 0);
+                    showOSD(<Volume2 size={40} />, `${Math.round(newVolDown * 100)}%`);
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPlaying, isMuted, volume]); // Dependencies to ensure current state is captured if needed, though mostly using refs/dom directly for some
+
 
     const formatTime = (time) => {
         if (isNaN(time)) return "0:00";
@@ -179,6 +274,16 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
 
+            {showGuide && <ShortcutGuide onDismiss={handleDismissGuide} />}
+
+            {/* OSD Overlay */}
+            <div key={osd.key} className={`player-osd ${osd.visible ? 'visible' : ''}`}>
+                <div className="osd-content">
+                    {osd.icon}
+                    <span>{osd.text}</span>
+                </div>
+            </div>
+
             {/* Controls Overlay */}
             <div
                 className={`player-controls glass ${showControls ? 'visible' : 'hidden'}`}
@@ -192,8 +297,9 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.5rem',
-                    transition: 'opacity 0.3s ease',
-                    opacity: showControls ? 1 : 0
+                    transition: 'none',
+                    opacity: showControls ? 1 : 0,
+                    zIndex: 20
                 }}
             >
                 {/* Progress Bar */}
@@ -213,12 +319,21 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button onClick={togglePlay} className="control-btn" style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+                        <button
+                            onClick={togglePlay}
+                            className="control-btn"
+                            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                            title={isPlaying ? "Pause (k/Space)" : "Play (k/Space)"}
+                        >
                             {isPlaying ? <Pause size={24} /> : <Play size={24} fill="white" />}
                         </button>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <button onClick={toggleMute} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+                            <button
+                                onClick={toggleMute}
+                                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                                title={isMuted ? "Unmute (m)" : "Mute (m)"}
+                            >
                                 {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
                             </button>
                             <input
@@ -243,6 +358,7 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
                             <button
                                 onClick={() => setShowSettings(!showSettings)}
                                 style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                                title="Settings"
                             >
                                 <Settings size={20} />
                             </button>
@@ -294,12 +410,58 @@ const VideoPlayer = ({ video, autoPlay = false, onTimeUpdate }) => {
                             )}
                         </div>
 
-                        <button onClick={toggleFullscreen} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+                        <button
+                            onClick={toggleFullscreen}
+                            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                            title="Fullscreen (f)"
+                        >
                             {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                         </button>
+
                     </div>
                 </div>
             </div>
+
+            <style>{`
+                .player-osd {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: none;
+                    z-index: 30;
+                }
+                .player-osd.visible {
+                    opacity: 1;
+                }
+                .osd-content {
+                    background: transparent;
+                    backdrop-filter: none;
+                    padding: 2rem;
+                    border-radius: 50%;
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 1rem;
+                    min-width: 140px;
+                    min-height: 140px;
+                    justify-content: center;
+                    border: none;
+                }
+                .osd-content svg {
+                    filter: drop-shadow(0 0 10px rgba(0,0,0,0.8));
+                }
+                .osd-content span {
+                    font-size: 1.2rem;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+                }
+            `}</style>
         </div>
     );
 };

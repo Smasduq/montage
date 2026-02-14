@@ -19,6 +19,7 @@ import Profile from './pages/Profile';
 import ManageVideos from './pages/ManageVideos';
 import ManageContent from './pages/ManageContent';
 import Achievements from './pages/Achievements';
+import Notifications from './pages/Notifications';
 import Insights from './pages/Insights';
 import NotificationManager from './components/NotificationManager';
 
@@ -67,6 +68,7 @@ function AppContent() {
             <Route path="/manage" element={<ProtectedRoute><ManageContent /></ProtectedRoute>} />
             <Route path="/manage-videos" element={<ProtectedRoute><ManageContent /></ProtectedRoute>} />
             <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
             {/* Admin and Moderator routes removed */}
 

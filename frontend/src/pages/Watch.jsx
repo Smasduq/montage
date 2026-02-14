@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { getVideoById, getComments, postComment, likeVideo, shareVideo, viewVideo } from '../api';
 import { Heart, Share2, Send, MessageSquare, Download, X, Check } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
@@ -89,6 +89,7 @@ const DownloadModal = ({ video, onClose, user }) => {
 
 const Watch = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const location = useLocation();
     const { token, user } = useAuth();
     const { showNotification } = useNotification();
@@ -186,7 +187,41 @@ const Watch = () => {
         // No API call here anymore
     };
 
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                // Navigate to a "next" video. 
+                // For now, let's fetch videos and navigate to the first one that isn't the current etc.
+                // Or if we had a list of recommendations, we'd use that.
+                // Simple implementation: fetch home videos and go to one.
+                const navigateToNext = async () => {
+                    try {
+                        const vids = await getVideos('home', token);
+                        if (vids && vids.length > 0) {
+                            // Filter out current and find next index or just pick a random one
+                            const others = vids.filter(v => v.id.toString() !== id.toString());
+                            if (others.length > 0) {
+                                const next = others[Math.floor(Math.random() * others.length)];
+                                navigate(`/watch/${next.id}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Failed to find next video:", err);
+                    }
+                };
+                navigateToNext();
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [id, token, navigate]);
+
     if (loading) return <div className="page-loading">Loading...</div>;
+
     if (error || !video) return <div className="page-error">{error || "Video not found"}</div>;
 
     const actionBtnStyle = {

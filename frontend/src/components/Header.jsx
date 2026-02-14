@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Zap, Menu, X, ArrowLeft, Search } from 'lucide-react';
+import { Zap, Menu, X, ArrowLeft, Search, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getSearchSuggestions, getTrendingSuggestions } from '../api';
+import { getSearchSuggestions, getTrendingSuggestions, getUnreadNotifications } from '../api';
 
 const Header = ({ onMenuToggle, isMenuOpen }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -10,6 +10,7 @@ const Header = ({ onMenuToggle, isMenuOpen }) => {
     const [trending, setTrending] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [searchHistory, setSearchHistory] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef(null);
 
     const { token, user } = useAuth();
@@ -41,6 +42,24 @@ const Header = ({ onMenuToggle, isMenuOpen }) => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        if (!token) return;
+
+        const fetchUnread = async () => {
+            try {
+                const data = await getUnreadNotifications(token);
+                setUnreadCount(Array.isArray(data) ? data.length : 0);
+            } catch (e) {
+                console.error("Failed to fetch unread notifications", e);
+            }
+        };
+
+        // Poll every 30 seconds
+        fetchUnread();
+        const interval = setInterval(fetchUnread, 30000);
+        return () => clearInterval(interval);
+    }, [token]);
 
     useEffect(() => {
         const timer = setTimeout(async () => {
@@ -241,14 +260,56 @@ const Header = ({ onMenuToggle, isMenuOpen }) => {
                         Login
                     </button>
                 ) : (
-                    <div className="user-profile-btn glass" onClick={() => navigate(`/profile/${user?.username}`)}>
-                        {user?.profile_pic ? (
-                            <img src={user.profile_pic} alt="profile" className="avatar-img-sm" />
-                        ) : (
-                            <div className="avatar-placeholder-sm">
-                                {user?.username?.[0].toUpperCase()}
-                            </div>
-                        )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <button
+                            className="glass"
+                            onClick={() => navigate('/notifications')}
+                            style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-glass)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Bell size={20} />
+                            {unreadCount > 0 && (
+                                <span style={{
+                                    position: 'absolute',
+                                    top: '-5px',
+                                    right: '-5px',
+                                    background: 'var(--accent-primary)',
+                                    color: 'white',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '2px solid var(--bg-deep)'
+                                }}>
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+
+                        <div className="user-profile-btn glass" onClick={() => navigate(`/profile/${user?.username}`)}>
+                            {user?.profile_pic ? (
+                                <img src={user.profile_pic} alt="profile" className="avatar-img-sm" />
+                            ) : (
+                                <div className="avatar-placeholder-sm">
+                                    {user?.username?.[0].toUpperCase()}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

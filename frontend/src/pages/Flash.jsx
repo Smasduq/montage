@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getVideos, likeVideo, shareVideo } from '../api';
+import { getVideos, likeVideo, shareVideo, toggleFollow } from '../api';
 import FlashCard from '../components/FlashCard';
 import CommentsDrawer from '../components/CommentsDrawer';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Volume2, VolumeX, Play, Pause } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -13,7 +13,17 @@ const Flash = () => {
     const [activeVideoId, setActiveVideoId] = useState(null);
     const [showCommentsId, setShowCommentsId] = useState(null);
     const [muted, setMuted] = useState(true);
+    const [osd, setOsd] = useState({ visible: false, icon: null, text: '', key: 0 });
+    const osdTimeout = useRef(null);
     const { token } = useAuth();
+
+    const showOSD = (icon, text) => {
+        if (osdTimeout.current) clearTimeout(osdTimeout.current);
+        setOsd({ visible: true, icon, text, key: Date.now() });
+        osdTimeout.current = setTimeout(() => {
+            setOsd(prev => ({ ...prev, visible: false }));
+        }, 1000);
+    };
 
     const observer = useRef(null);
     const containerRef = useRef(null);
@@ -62,6 +72,7 @@ const Flash = () => {
                 setClips(data.map(video => ({
                     ...video,
                     liked: video.liked_by_user,
+                    owner_followed: video.owner?.is_following || false, // Should be added by backend ideally
                     song: "Original Audio"
                 })));
                 if (data.length > 0 && !activeVideoId) setActiveVideoId(data[0].id);
@@ -113,18 +124,55 @@ const Flash = () => {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                scrollToVideo(-1);
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                scrollToVideo(1);
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch (e.key.toLowerCase()) {
+                case 'arrowup':
+                    e.preventDefault();
+                    scrollToVideo(-1);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    scrollToVideo(1);
+                    break;
+                case ' ':
+                case 'k':
+                    e.preventDefault();
+                    const activeVideo = document.querySelector(`[data-id="${activeVideoId}"] video`);
+                    if (activeVideo) {
+                        if (activeVideo.paused) {
+                            activeVideo.play();
+                            showOSD(<Play size={40} fill="white" />, 'Playing');
+                        }
+                        else {
+                            activeVideo.pause();
+                            showOSD(<Pause size={40} />, 'Paused');
+                        }
+                    }
+                    break;
+                case 'l':
+                    e.preventDefault();
+                    if (activeVideoId) handleLike(activeVideoId);
+                    break;
+                case 'c':
+                    e.preventDefault();
+                    setShowCommentsId(prev => (prev === activeVideoId ? null : activeVideoId));
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    const nextMute = !muted;
+                    setMuted(nextMute);
+                    showOSD(nextMute ? <VolumeX size={40} /> : <Volume2 size={40} />, nextMute ? 'Muted' : 'Unmuted');
+                    break;
+                default:
+                    break;
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeVideoId, clips]);
+    }, [activeVideoId, clips, muted]);
+
 
     const handleLike = async (id) => {
         if (!token) {
@@ -165,6 +213,32 @@ const Flash = () => {
         }
     };
 
+    const handleFollow = async (userId) => {
+        if (!token) {
+            showNotification('info', "Please login to follow creators!");
+            return;
+        }
+
+        // Optimistic UI update
+        setClips(prev => prev.map(c =>
+            c.owner?.id === userId ? { ...c, owner_followed: !c.owner_followed } : c
+        ));
+
+        try {
+            const response = await toggleFollow(userId, token);
+            if (response && response.is_following !== undefined) {
+                setClips(prev => prev.map(c =>
+                    c.owner?.id === userId ? { ...c, owner_followed: response.is_following } : c
+                ));
+            }
+        } catch (err) {
+            console.error("Failed to follow user", err);
+            setClips(prev => prev.map(c =>
+                c.owner?.id === userId ? { ...c, owner_followed: !c.owner_followed } : c
+            ));
+        }
+    };
+
     if (loading) return <div className="loading-screen">Loading Feed...</div>;
 
     return (
@@ -186,6 +260,7 @@ const Flash = () => {
                                 onLike={handleLike}
                                 onComment={setShowCommentsId}
                                 onShare={handleShare}
+                                onFollow={() => handleFollow(clip.owner?.id)}
                                 muted={muted}
                                 toggleMute={() => setMuted(!muted)}
                             />
@@ -203,6 +278,7 @@ const Flash = () => {
                     className="nav-control-btn"
                     onClick={() => scrollToVideo(-1)}
                     aria-label="Previous Video"
+                    title="Previous Video (Arrow Up)"
                 >
                     <ChevronUp size={28} />
                 </button>
@@ -210,6 +286,7 @@ const Flash = () => {
                     className="nav-control-btn"
                     onClick={() => scrollToVideo(1)}
                     aria-label="Next Video"
+                    title="Next Video (Arrow Down)"
                 >
                     <ChevronDown size={28} />
                 </button>
@@ -221,6 +298,53 @@ const Flash = () => {
                     onClose={() => setShowCommentsId(null)}
                 />
             )}
+
+            {/* OSD Overlay */}
+            <div key={osd.key} className={`flash-osd ${osd.visible ? 'visible' : ''}`}>
+                <div className="osd-content">
+                    {osd.icon}
+                    <span>{osd.text}</span>
+                </div>
+            </div>
+
+            <style>{`
+                .flash-osd {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: none;
+                    z-index: 200;
+                }
+                .flash-osd.visible {
+                    opacity: 1;
+                }
+                .osd-content {
+                    background: transparent;
+                    backdrop-filter: none;
+                    padding: 1.5rem;
+                    border-radius: 20px;
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.8rem;
+                    min-width: 120px;
+                    border: none;
+                }
+                .osd-content svg {
+                    filter: drop-shadow(0 0 10px rgba(0,0,0,0.8));
+                }
+                .osd-content span {
+                    font-size: 1rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+                }
+            `}</style>
         </div>
     );
 };

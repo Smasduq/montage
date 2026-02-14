@@ -41,6 +41,8 @@ const Upload = () => {
     const [showModal, setShowModal] = useState(false);
     const [currentType, setCurrentType] = useState(null);
     const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [tags, setTags] = useState('');
     const [file, setFile] = useState(null);
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -59,11 +61,22 @@ const Upload = () => {
 
         try {
             const formData = new FormData();
-            formData.append('title', title);
-            formData.append('video_type', currentType);
-            formData.append('file', file);
-            if (thumbnailFile) {
-                formData.append('thumbnail', thumbnailFile);
+
+            if (currentType === 'posts') {
+                formData.append('content', title);
+                if (tags) formData.append('tags', tags);
+                if (file) {
+                    formData.append('image', file);
+                }
+            } else {
+                formData.append('title', title);
+                formData.append('description', description);
+                if (tags) formData.append('tags', tags);
+                formData.append('video_type', currentType);
+                formData.append('file', file);
+                if (thumbnailFile) {
+                    formData.append('thumbnail', thumbnailFile);
+                }
             }
 
             const xhr = new XMLHttpRequest();
@@ -86,12 +99,28 @@ const Upload = () => {
                     }
                 };
                 xhr.onerror = () => reject(new Error('Network error during upload'));
-                xhr.open('POST', `${API_BASE_URL}/videos/upload`);
+
+                const endpoint = currentType === 'posts' ? `${API_BASE_URL}/posts/create` : `${API_BASE_URL}/videos/upload`;
+                xhr.open('POST', endpoint);
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);
             });
 
             const data = await uploadPromise;
+
+            if (currentType === 'posts') {
+                updateNotification(notificationId, {
+                    type: 'success',
+                    status: 'Post Published!',
+                    message: 'Your post is now live in the community feed.',
+                    progress: 100
+                });
+                setTimeout(() => removeNotification(notificationId), 3000);
+                setTitle('');
+                setTags('');
+                setFile(null);
+                return;
+            }
 
             updateNotification(notificationId, {
                 type: 'processing',
@@ -386,14 +415,76 @@ const Upload = () => {
                             <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Fill in the details to share your creation.</p>
                         </div>
 
-                        {/* Title Input */}
+                        {/* Title/Content Input */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Content Title</label>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>
+                                {currentType === 'posts' ? 'Post Content' : 'Content Title'}
+                            </label>
+                            {currentType === 'posts' ? (
+                                <textarea
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="What's on your mind?..."
+                                    style={{
+                                        padding: '1.2rem',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '16px',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        minHeight: '120px',
+                                        resize: 'vertical',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="A catchy name for your video..."
+                                    style={{
+                                        padding: '1.2rem',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '16px',
+                                        color: 'white',
+                                        fontSize: '1rem'
+                                    }}
+                                />
+                            )}
+                        </div>
+
+                        {/* Description Input (Videos ONLY) */}
+                        {currentType !== 'posts' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Description</label>
+                                <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="Tell viewers more about your video..."
+                                    style={{
+                                        padding: '1.2rem',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '16px',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        minHeight: '100px',
+                                        resize: 'vertical',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {/* Tags Input */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Tags</label>
                             <input
                                 type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="A catchy name for your video..."
+                                value={tags}
+                                onChange={(e) => setTags(e.target.value)}
+                                placeholder="e.g. cinematic, vlog, gaming (separate with commas)"
                                 style={{
                                     padding: '1.2rem',
                                     background: 'rgba(255,255,255,0.05)',
@@ -407,7 +498,9 @@ const Upload = () => {
 
                         {/* Drag & Drop Area */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>Video File</label>
+                            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>
+                                {currentType === 'posts' ? 'Attached Image (Optional)' : 'Video File'}
+                            </label>
                             <div
                                 onDragOver={onDragOver}
                                 onDragLeave={onDragLeave}
@@ -416,7 +509,7 @@ const Upload = () => {
                                 style={{
                                     border: `2px dashed ${isDragging ? (currentType ? quotas[currentType].color : 'var(--accent-primary)') : 'rgba(255,255,255,0.1)'}`,
                                     borderRadius: '24px',
-                                    padding: '3rem',
+                                    padding: currentType === 'posts' ? '1.5rem' : '3rem',
                                     textAlign: 'center',
                                     background: isDragging ? 'rgba(255,255,255,0.05)' : 'transparent',
                                     cursor: 'pointer',
@@ -431,23 +524,28 @@ const Upload = () => {
                                     type="file"
                                     ref={fileInputRef}
                                     style={{ display: 'none' }}
-                                    accept="video/*"
+                                    accept={currentType === 'posts' ? "image/*" : "video/*"}
                                     onChange={(e) => setFile(e.target.files[0])}
                                 />
                                 <div style={{
-                                    width: '60px', height: '60px',
+                                    width: currentType === 'posts' ? '40px' : '60px',
+                                    height: currentType === 'posts' ? '40px' : '60px',
                                     borderRadius: '50%',
                                     background: 'rgba(255,255,255,0.05)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     color: file ? '#4ade80' : 'var(--text-secondary)'
                                 }}>
-                                    {file ? <CheckCircle size={30} /> : <UploadIcon size={30} />}
+                                    {file ? <CheckCircle size={currentType === 'posts' ? 20 : 30} /> : <UploadIcon size={currentType === 'posts' ? 20 : 30} />}
                                 </div>
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{file ? file.name : 'Drag & drop video'}</div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.3rem' }}>
-                                        {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'or click to browse from device'}
+                                    <div style={{ fontWeight: 700, fontSize: currentType === 'posts' ? '0.9rem' : '1.1rem' }}>
+                                        {file ? file.name : (currentType === 'posts' ? 'Add image' : 'Drag & drop video')}
                                     </div>
+                                    {!file && (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.3rem' }}>
+                                            {currentType === 'posts' ? 'or click to browse images' : 'or click to browse from device'}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -494,7 +592,7 @@ const Upload = () => {
                         <button
                             onClick={handleUpload}
                             className="btn-active"
-                            disabled={!file || !title}
+                            disabled={(currentType === 'posts' ? !title : (!file || !title))}
                             style={{
                                 width: '100%',
                                 padding: '1.2rem',
@@ -510,7 +608,7 @@ const Upload = () => {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: '1rem',
-                                opacity: (!file || !title) ? 0.5 : 1
+                                opacity: (currentType === 'posts' ? !title : (!file || !title)) ? 0.5 : 1
                             }}
                         >
                             Start Publishing <ArrowRight size={20} />

@@ -323,6 +323,19 @@ def update_video_status(
          
     video.status = status
     db.commit()
+    
+    # Check for FIRST_UPLOAD achievement upon approval
+    if status == "approved":
+        from app.crud import achievement as crud_achievement
+        # Check how many approved videos the owner has
+        approved_count = db.query(func.count(Video.id)).filter(
+            Video.owner_id == video.owner_id, 
+            Video.status == "approved"
+        ).scalar()
+        
+        if approved_count == 1:
+            crud_achievement.create_achievement(db, user_id=video.owner_id, milestone_name="FIRST_UPLOAD")
+
     return {"status": "success", "video_status": video.status}
 
 
@@ -330,6 +343,8 @@ def update_video_status(
 async def upload_video(
     background_tasks: BackgroundTasks,
     title: str = Form(...),
+    description: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
     video_type: str = Form(...),
     file: UploadFile = File(...),
     thumbnail: Optional[UploadFile] = File(None),
@@ -351,6 +366,8 @@ async def upload_video(
     # Initial DB record
     video_create_data = schemas.VideoCreate(
         title=title,
+        description=description,
+        tags=tags,
         video_type=video_type,
         video_url="", 
         thumbnail_url="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=60",
@@ -412,7 +429,7 @@ def view_video(
         raise HTTPException(status_code=404, detail="Video not found")
     
     user_id = current_user.id if current_user else None
-    updated_video = crud_video.increment_view(db, video_id=video_id, user_id=user_id)
+    updated_video = crud_video.increment_view(db, user_id=user_id, video_id=video_id)
     return {"status": "success", "views": updated_video.views if updated_video else 0}
 
 @router.post("/{video_id}/comments", response_model=schemas.Comment)
@@ -426,7 +443,7 @@ def create_comment(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
-    return crud_video.create_comment(db, comment=comment, video_id=video_id, user_id=current_user.id)
+    return crud_video.create_comment(db, comment=comment, user_id=current_user.id, video_id=video_id)
 
 @router.get("/{video_id}/comments", response_model=List[schemas.Comment])
 def read_comments(video_id: int, db: Session = Depends(get_db)):
@@ -442,7 +459,7 @@ def like_video(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
-    is_liked = crud_video.toggle_like(db, video_id=video_id, user_id=current_user.id)
+    is_liked = crud_video.toggle_like(db, user_id=current_user.id, video_id=video_id)
     
     from app.models.models import Like
     likes_count = db.query(func.count(Like.video_id)).filter(Like.video_id == video_id).scalar() or 0

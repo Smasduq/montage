@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { viewVideo } from '../api';
 
-const FlashCard = ({ video, isActive, onLike, onComment, onShare, muted, toggleMute }) => {
+const FlashCard = ({ video, isActive, onLike, onComment, onShare, onFollow, muted, toggleMute }) => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const videoRef = useRef(null);
     const [playing, setPlaying] = useState(false);
     const [showHeart, setShowHeart] = useState(false);
@@ -100,21 +101,21 @@ const FlashCard = ({ video, isActive, onLike, onComment, onShare, muted, toggleM
 
             {/* Sidebar Actions */}
             <div className="flash-sidebar">
-                <div className="sidebar-action" onClick={() => onLike(video.id)}>
+                <div className="sidebar-action" onClick={() => onLike(video.id)} title="Like (l)">
                     <div className={`icon-circle ${video.liked ? 'liked' : ''}`}>
                         <Heart size={28} fill={video.liked ? 'var(--accent-primary)' : 'rgba(0,0,0,0.3)'} color={video.liked ? 'var(--accent-primary)' : 'white'} />
                     </div>
                     <span>{video.likes_count}</span>
                 </div>
 
-                <div className="sidebar-action" onClick={() => onComment(video.id)}>
+                <div className="sidebar-action" onClick={() => onComment(video.id)} title="Comments (c)">
                     <div className="icon-circle">
                         <MessageCircle size={28} fill="rgba(0,0,0,0.3)" color="white" />
                     </div>
                     <span>{video.comment_count}</span>
                 </div>
 
-                <div className="sidebar-action" onClick={() => onShare(video.id)}>
+                <div className="sidebar-action" onClick={() => onShare(video.id)} title="Share">
                     <div className="icon-circle">
                         <Share2 size={28} fill="rgba(0,0,0,0.3)" color="white" />
                     </div>
@@ -143,12 +144,28 @@ const FlashCard = ({ video, isActive, onLike, onComment, onShare, muted, toggleM
                         >
                             @{video.owner?.username || 'user'}
                         </h3>
-                        <button
-                            className="follow-btn"
-                            onClick={() => navigate(`/profile/${video.owner?.username}`)}
-                        >
-                            Follow
-                        </button>
+                        {video.owner?.id !== user?.id && (
+                            <button
+                                className={`follow-btn ${video.owner_followed ? 'followed' : ''}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onFollow();
+                                }}
+                                style={{
+                                    background: video.owner_followed ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
+                                    border: video.owner_followed ? '1px solid rgba(255,255,255,0.3)' : 'none',
+                                    color: 'white',
+                                    padding: '4px 12px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                {video.owner_followed ? 'Following' : 'Follow'}
+                            </button>
+                        )}
                     </div>
                 </div>
                 <p className="info-description">{video.title}</p>
@@ -166,7 +183,7 @@ const FlashCard = ({ video, isActive, onLike, onComment, onShare, muted, toggleM
             </div>
 
             {/* Mute Toggle */}
-            <button className="mute-toggle" onClick={(e) => { e.stopPropagation(); toggleMute(); }}>
+            <button className="mute-toggle" onClick={(e) => { e.stopPropagation(); toggleMute(); }} title="Mute (m)">
                 {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
             </button>
         </div>
