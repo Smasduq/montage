@@ -9,12 +9,9 @@ import {
   Home as HomeIcon, Zap, UploadCloud,
   Clapperboard, Trophy, TrendingUp,
   Crown, Users, Compass, History, Clock, 
-  ThumbsUp, Telescope, Handshake
+  ThumbsUp, Telescope, Handshake, MessageSquare
 
 } from 'lucide-react';
-
-
-
 import { useAuth } from '@/context/AuthContext';
 
 /* ── Small group label ─────────────────────────────────── */
@@ -87,6 +84,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         <NavItem to="/home"     icon={<HomeIcon size={24} />}  label="For You"     onClick={onClose} />
         <NavItem to="/flash"    icon={<Zap size={24} />}       label="Flash Clips" onClick={onClose} accent="#ff3b30" />
         <NavItem to="/following" icon={<Users size={24} />}    label="Following"   onClick={onClose} />
+        <NavItem to="/chat"      icon={<MessageSquare size={24} />} label="Chat"      onClick={onClose} />
 
 
         <NavDivider />

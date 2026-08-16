@@ -160,8 +160,15 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(...)):
 # ── Initialization ────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
+    # Ensure database tables exist
+    try:
+        from app.db.session import engine
+        from app.models.models import Base
+        Base.metadata.create_all(bind=engine)
+    except Exception as db_err:
+        logger.warning(f"DB table creation warning: {db_err}")
+
     # Guarantee critical columns exist before any ORM query runs.
-    # ADD COLUMN IF NOT EXISTS is idempotent and safe to re-run.
     try:
         from app.db.session import SessionLocal
         from sqlalchemy import text
@@ -176,20 +183,26 @@ async def startup():
             logger.info("Critical columns verified in DB")
         except Exception as e:
             db.rollback()
-            logger.warning(f"Column guard failed: {e}")
+            logger.warning(f"Column guard skipped: {e}")
         finally:
             db.close()
     except Exception as e:
         logger.warning(f"DB column guard skipped: {e}")
 
     from app.core.config import REDIS_URL
-    redis = aioredis.from_url(
-        REDIS_URL,
-        encoding="utf8",
-        decode_responses=True,
-        max_connections=5,
-    )
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    if REDIS_URL:
+        try:
+            redis = aioredis.from_url(
+                REDIS_URL,
+                encoding="utf8",
+                decode_responses=True,
+                max_connections=5,
+            )
+            FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+        except Exception as cache_err:
+            logger.warning(f"Redis cache initialization skipped: {cache_err}")
+    else:
+        logger.info("REDIS_URL not set; skipping Redis cache initialization")
 
 @app.get("/", tags=["System"])
 async def root_health():

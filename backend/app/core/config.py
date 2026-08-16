@@ -35,7 +35,7 @@ CORS_ALLOW_ORIGIN_REGEX = os.getenv(
 
 
 # Database Configuration
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 
 # Quota Limits
 FLASH_QUOTA_LIMIT = 50
