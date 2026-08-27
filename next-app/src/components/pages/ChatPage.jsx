@@ -27,6 +27,7 @@ import { Key, Cloud, Home, MessageSquare, UserPlus, Zap, ShieldCheck, ShieldAler
 import ChatList from '@/components/chat/ChatList';
 import ChatWindow from '@/components/chat/ChatWindow';
 import { useGoogleLogin } from '@react-oauth/google';
+import Link from 'next/link';
 import '@/styles/pages/Chat.css';
 const logo = '/images/logo.png';
 
@@ -974,12 +975,12 @@ const Chat = () => {
             {/* Primary Navigation Rail */}
             <div className="nav-rail">
                 <div className="nav-rail-top">
-                    <div className="nav-rail-logo">
+                    <Link href="/home" className="nav-rail-logo" style={{ textDecoration: 'none' }}>
                         <div className="nav-rail-logo-mark">
                             <img src={logo} alt="Monteeq" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                         </div>
                         <span className="nav-rail-logo-text">Monteeq</span>
-                    </div>
+                    </Link>
 
                     <button
                         className={`nav-rail-btn ${!isDiscoveryMode ? 'active' : ''}`}
