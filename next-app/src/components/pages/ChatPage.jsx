@@ -31,10 +31,8 @@ import '@/styles/pages/Chat.css';
 const logo = '/images/logo.png';
 
 const Chat = () => {
-    if (typeof window === 'undefined') {
-        return null;
-    }
-
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => setIsMounted(true), []);
     const { user, token, setUser } = useAuth();
     const router = useRouter();
     const { showNotification } = useNotification();
@@ -850,6 +848,8 @@ const Chat = () => {
         }
         return bytes.buffer;
     };
+
+    if (!isMounted) return null;
 
     if (isInitialSync) return (
         <div style={{
