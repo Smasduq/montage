@@ -7,7 +7,12 @@ import axios from 'axios';
 const BACKUP_FILENAME = 'monteeq_chat_backup_v2.json';
 
 export const useGoogleDrive = (onSuccess) => {
-    const [accessToken, setAccessToken] = useState(localStorage.getItem('google_drive_token'));
+    const [accessToken, setAccessToken] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('google_drive_token');
+        }
+        return null;
+    });
     const [isSyncing, setIsSyncing] = useState(false);
 
     const login = useGoogleLogin({

@@ -27,16 +27,20 @@ import { Key, Cloud, Home, MessageSquare, UserPlus, Zap, ShieldCheck, ShieldAler
 import ChatList from '@/components/chat/ChatList';
 import ChatWindow from '@/components/chat/ChatWindow';
 import { useGoogleLogin } from '@react-oauth/google';
+import Link from 'next/link';
 import '@/styles/pages/Chat.css';
 const logo = '/images/logo.png';
 
 const Chat = () => {
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => setIsMounted(true), []);
     const { user, token, setUser } = useAuth();
     const router = useRouter();
     const { showNotification } = useNotification();
     const { saveMessage, getMessagesForConversation, saveConversation, getLocalConversations } = useChatDB();
     const searchParams = useSearchParams();
     const deviceId = useMemo(() => {
+        if (typeof window === 'undefined') return 'device_server';
         let devId = localStorage.getItem('monteeq_device_id');
         if (!devId) {
             devId = 'device_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
@@ -73,7 +77,12 @@ const Chat = () => {
     const decryptionQueueRef = useRef(new Set());
     const lastHealAttemptRef = useRef(0);
     const activeConvIdRef = useRef(null);
-    const [lastBackupTime, setLastBackupTime] = useState(localStorage.getItem('monteeq_last_backup_time'));
+    const [lastBackupTime, setLastBackupTime] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('monteeq_last_backup_time');
+        }
+        return null;
+    });
     const [isConvsLoaded, setIsConvsLoaded] = useState(false);
     const [syncError, setSyncError] = useState(false);
     const [retryTrigger, setRetryTrigger] = useState(0);
@@ -83,14 +92,13 @@ const Chat = () => {
         await performDriveSync(driveToken);
     });
 
-    const handleGoogleLink = useGoogleLogin({
+    const hasGoogleClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const googleLoginCall = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
                 const linkRes = await linkGoogleAccount(tokenResponse.access_token, token);
                 if (linkRes.google_id) {
                     setUser(linkRes);
-                    // drive hook will automatically have access to updated user
-                    // We might need to manually trigger sync if it doesn't happen
                 }
             } catch (err) {
                 console.error("Link failed", err);
@@ -98,6 +106,14 @@ const Chat = () => {
         },
         scope: 'https://www.googleapis.com/auth/drive.file email profile'
     });
+
+    const handleGoogleLink = useCallback((overrideConfig) => {
+        if (!hasGoogleClientId) {
+            console.warn("Google OAuth client ID not configured");
+            return;
+        }
+        googleLoginCall(overrideConfig);
+    }, [hasGoogleClientId, googleLoginCall]);
 
     const performDriveSync = useCallback(async (driveToken) => {
         if (!user.google_id) return false;
@@ -834,6 +850,8 @@ const Chat = () => {
         return bytes.buffer;
     };
 
+    if (!isMounted) return null;
+
     if (isInitialSync) return (
         <div style={{
             minHeight: '100vh',
@@ -957,12 +975,12 @@ const Chat = () => {
             {/* Primary Navigation Rail */}
             <div className="nav-rail">
                 <div className="nav-rail-top">
-                    <div className="nav-rail-logo">
+                    <Link href="/home" className="nav-rail-logo" style={{ textDecoration: 'none' }}>
                         <div className="nav-rail-logo-mark">
                             <img src={logo} alt="Monteeq" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                         </div>
                         <span className="nav-rail-logo-text">Monteeq</span>
-                    </div>
+                    </Link>
 
                     <button
                         className={`nav-rail-btn ${!isDiscoveryMode ? 'active' : ''}`}

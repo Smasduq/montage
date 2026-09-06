@@ -27,9 +27,24 @@ export const useWebSocket = (token, onMessage) => {
     const connect = useCallback(() => {
         if (!token) return;
 
-        // Determine WS URL from current window location
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
+        // Determine WS host and protocol
+        let host = process.env.NEXT_PUBLIC_WS_HOST;
+        if (!host && process.env.NEXT_PUBLIC_API_BASE_URL) {
+            try {
+                const apiUrl = new URL(process.env.NEXT_PUBLIC_API_BASE_URL);
+                host = apiUrl.host;
+            } catch (_) {}
+        }
+        if (!host && typeof window !== 'undefined') {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                host = `${window.location.hostname}:8000`;
+            } else {
+                host = window.location.host;
+            }
+        }
+
+        const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        const protocol = isSecure ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${host}/ws/chat?token=${encodeURIComponent(token)}`;
 
         try {

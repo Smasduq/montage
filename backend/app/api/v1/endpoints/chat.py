@@ -316,7 +316,7 @@ def acknowledge_messages(
     current_user: User = Depends(get_current_user)
 ):
     if not message_ids:
-        return {"status": "ok", "deleted": 0}
+        return {"status": "ok", "acknowledged": 0, "deleted": 0}
 
     # Find conversations the user belongs to
     user_conv_ids = [
@@ -325,14 +325,13 @@ def acknowledge_messages(
         ).all()
     ]
 
-    # Perform bulk delete on matching messages, bypassing session state sync warnings
-    deleted_count = db.query(ChatMessage).filter(
+    # Count matching messages for the current user's conversations without deleting them from the database
+    ack_count = db.query(ChatMessage).filter(
         ChatMessage.id.in_(message_ids),
         ChatMessage.conversation_id.in_(user_conv_ids)
-    ).delete(synchronize_session=False)
+    ).count()
 
-    db.commit()
-    return {"status": "ok", "deleted": deleted_count}
+    return {"status": "ok", "acknowledged": ack_count, "deleted": 0}
 
 @router.post("/upload", response_model=schemas.AttachmentResponse)
 def upload_attachment(
